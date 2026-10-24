@@ -8,3 +8,9 @@ and friends.
 1. [`docs/01-BRD-v1-draft.md`](docs/01-BRD-v1-draft.md): the first draft of the business requirements.
 2. [`docs/02-competitor-analysis.md`](docs/02-competitor-analysis.md): market comparison and the gaps found in v1 (G1–G14).
 3. [`docs/03-BRD-v2-final.md`](docs/03-BRD-v2-final.md): **the current BRD**, with every gap fixed and traced.
+4. [`docs/04-device-protocol.md`](docs/04-device-protocol.md): MQTT topics and message format used by the robots.
+
+## Code
+- [`firmware/`](firmware/README.md): ESP32-S3 prototype firmware (ESP-IDF v5.3.2). See its README for wiring, build and a two-robot demo.
+- [`tools/sohail_cli.py`](tools/sohail_cli.py): command-line stand-in for the companion app.
+- [`server/`](server/docker-compose.yml): local Mosquitto broker for development.

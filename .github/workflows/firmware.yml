@@ -1,0 +1,52 @@
+name: firmware
+
+on:
+  push:
+    paths: ["firmware/**", "tools/**", ".github/workflows/firmware.yml"]
+  pull_request:
+    paths: ["firmware/**", "tools/**", ".github/workflows/firmware.yml"]
+  workflow_dispatch:
+
+jobs:
+  host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run sohail_core unit tests
+        run: |
+          cmake -S firmware/host_tests -B build/host -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build/host -j
+          ctest --test-dir build/host --output-on-failure
+      - name: Render face previews
+        run: |
+          mkdir -p build/faces
+          build/host/render_faces build/faces
+          python3 firmware/host_tests/contact_sheet.py build/faces build/faces.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: face-previews
+          path: build/faces.png
+      - name: Check CLI
+        run: |
+          pip install -r tools/requirements.txt
+          python3 tools/sohail_cli.py --help > /dev/null
+
+  esp32s3-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build with ESP-IDF v5.3.2
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.3.2
+          target: esp32s3
+          path: firmware
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sohail-esp32s3-firmware
+          path: |
+            firmware/build/sohail.bin
+            firmware/build/bootloader/bootloader.bin
+            firmware/build/partition_table/partition-table.bin
+            firmware/build/ota_data_initial.bin
+            firmware/build/flasher_args.json

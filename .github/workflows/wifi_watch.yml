@@ -1,0 +1,65 @@
+name: wifi_watch
+
+on:
+  push:
+    paths: ["wifi_watch/**", ".github/workflows/wifi_watch.yml"]
+  pull_request:
+    paths: ["wifi_watch/**", ".github/workflows/wifi_watch.yml"]
+  workflow_dispatch:
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to update the "wifi-watch-latest" pre-release
+    defaults:
+      run:
+        working-directory: wifi_watch
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.7
+          channel: stable
+          cache: true
+
+      - name: Get packages and analyze
+        run: |
+          flutter pub get
+          flutter analyze
+
+      - name: Test
+        run: flutter test -r expanded
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wifi-watch-apk
+          path: wifi_watch/build/app/outputs/flutter-apk/app-release.apk
+
+      # One stable link to tap on a phone: the newest APK from a push, as a
+      # pre-release. Not for pull requests.
+      - name: Publish the "wifi-watch-latest" pre-release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk "$RUNNER_TEMP/wifi-watch.apk"
+          git tag -f wifi-watch-latest "$GITHUB_SHA"
+          git push -f origin refs/tags/wifi-watch-latest
+          notes="Latest WiFi Watch build from \`$GITHUB_REF_NAME\` ($GITHUB_SHA). Download wifi-watch.apk on your Android phone and open it to install."
+          if gh release view wifi-watch-latest > /dev/null 2>&1; then
+            gh release edit wifi-watch-latest --prerelease --notes "$notes"
+          else
+            gh release create wifi-watch-latest --prerelease --title "WiFi Watch (latest build)" --notes "$notes"
+          fi
+          gh release upload wifi-watch-latest "$RUNNER_TEMP/wifi-watch.apk" --clobber

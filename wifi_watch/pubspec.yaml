@@ -1,0 +1,23 @@
+name: wifi_watch
+description: "See the devices on your home Wi-Fi and how much data they use"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  crypto: 3.0.7
+  cryptography: 2.9.0
+  shared_preferences: 2.5.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

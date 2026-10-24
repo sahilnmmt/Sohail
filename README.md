@@ -14,5 +14,6 @@ and friends.
 - [`firmware/`](firmware/README.md): ESP32-S3 prototype firmware (ESP-IDF v5.3.2). See its README for wiring, build and a two-robot demo.
 - [`app/`](app/README.md): Android companion app (Flutter). Sets up robots over Bluetooth and sends messages. CI builds the APK.
 - [`web/`](web/README.md): accounts website on Firebase (sign-in, families, invites, roles, robot registration).
+- [`wifi_watch/`](wifi_watch/README.md): a separate personal Android app (Flutter) that shows the devices on your home Wi-Fi and their data usage, read from a TP-Link router.
 - [`tools/sohail_cli.py`](tools/sohail_cli.py): command-line client for testing.
 - [`server/`](server/docker-compose.yml): local Mosquitto broker for development.

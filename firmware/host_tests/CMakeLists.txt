@@ -5,7 +5,9 @@ project(sohail_host_tests C)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
-add_compile_options(-Wall -Wextra -Werror -Wno-unused-parameter)
+# -O2 like the firmware build, so optimisation-dependent warnings such as
+# -Wformat-truncation show up here too.
+add_compile_options(-O2 -Wall -Wextra -Werror -Wno-unused-parameter)
 
 # Same cJSON release that ESP-IDF v5.3 bundles.
 include(FetchContent)

@@ -27,6 +27,7 @@ extern "C" {
 #define ROBOT_REACT_MS           2000
 #define ROBOT_PICK_TIMEOUT_MS    8000
 #define ROBOT_REMIND_MS          (2u * 60u * 1000u)
+#define ROBOT_TITLE_MAX          (SOHAIL_ID_MAX + 8) /* fits a full sender id */
 
 typedef enum {
     ROBOT_BOOT = 0,
@@ -78,7 +79,7 @@ typedef struct {
 
 typedef struct {
     face_expr_t face;
-    char title[24];   /* small line at the top, may be empty */
+    char title[ROBOT_TITLE_MAX]; /* small line at the top, may be empty */
     char body[SOHAIL_TEXT_MAX + 1]; /* large text under the face, may be empty */
     bool show_code;   /* draw code prominently */
     char code[8];
@@ -108,7 +109,7 @@ typedef struct {
 
     /* Transient reaction (petting, "sent!", errors) shown over idle. */
     face_expr_t react_face;
-    char react_title[24];
+    char react_title[ROBOT_TITLE_MAX];
     uint32_t react_until;
     bool reacting;
 

@@ -8,10 +8,13 @@ Flutter companion app for Sohail robots:
 - **Robot presence:** see which robots are online.
 
 ## Install the APK
-1. Open the latest run of the **app** workflow in GitHub Actions and download
-   the `sohail-app-apk` artifact. Unzip it to get `app-release.apk`.
-2. Copy it to the phone and open it. Android asks you to allow installing apps
-   from that source the first time.
+On your Android phone, open
+**https://github.com/sahilnmmt/Sohail/releases/download/app-latest/sohail-app.apk**
+and open the downloaded file. Android asks you to allow installing apps from
+your browser the first time. That link always points to the newest build: CI
+updates the `app-latest` pre-release after every push.
+
+Each Actions run also keeps the APK as the `sohail-app-apk` artifact.
 
 The APK is signed with Flutter's debug key, which is fine for installing it
 yourself. For Google Play you need your own signing key.

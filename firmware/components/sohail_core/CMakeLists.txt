@@ -8,7 +8,8 @@ set(SOHAIL_CORE_SRCS
     src/font5x7.c
     src/button.c
     src/touch_detect.c
-    src/chime.c)
+    src/chime.c
+    src/screen.c)
 
 if(ESP_PLATFORM)
     idf_component_register(SRCS ${SOHAIL_CORE_SRCS}

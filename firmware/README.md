@@ -79,6 +79,23 @@ attached to each run as the `sohail-esp32s3-firmware` artifact.
    python3 tools/sohail_cli.py --host <broker-ip> send text "Dinner's ready!"
    ```
 
+## Test run and preview without hardware
+- **Scripted test run:** `host_tests/test_scenario.c` walks a whole day in the
+  robot's life through the real state machine and renderer:
+  - setup code and a wrong password, then connecting
+  - a nudge from Grandma and replying with an emoji
+  - two queued messages, petting the head, going offline
+  - falling asleep, and the reset warning
+
+  `build/host/test_scenario <dir>` also saves one frame per step. CI uploads
+  them as `storyboard.png`.
+- **Interactive preview:** `sim/` compiles the same C code to WebAssembly (zig, wasm32-wasi). Open it with
+  `python3 -m http.server -d firmware/sim/web 8000` and go to http://localhost:8000.
+  It has a real on-screen button (it goes through the firmware's gesture decoder),
+  a touch pad, simulated family messages, and Wi-Fi/server switches.
+  After changing `sohail_core`, rebuild with `firmware/sim/build_wasm.sh` and commit `sim/web/sohail.wasm`.
+  CI fails if it is stale.
+
 ## Code layout
 ```
 firmware/
@@ -93,8 +110,10 @@ firmware/
     protocol.c             message JSON encode/decode + validation
     robot.c                behaviour state machine
     face.c gfx.c font5x7.c procedural face renderer, text, 5x7 font
+    screen.c               full screen: face + title, status dot, code, wrapped text
     button.c touch_detect.c chime.c
-  host_tests/              host unit tests + face preview renderer
+  host_tests/              host unit tests, scripted test run, face preview renderer
+  sim/                     virtual robot (sim.c) + WebAssembly build and browser preview (web/)
 ```
 The robot logic is plain C with no ESP-IDF dependency, so you can change
 behaviour and test it on a PC:

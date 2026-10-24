@@ -26,11 +26,18 @@ target_compile_options(cjson PRIVATE -w)
 add_subdirectory(../components/sohail_core sohail_core)
 
 enable_testing()
-foreach(t protocol robot face gfx button touch chime)
+foreach(t protocol robot face gfx button touch chime screen)
     add_executable(test_${t} test_${t}.c)
     target_link_libraries(test_${t} sohail_core)
     add_test(NAME ${t} COMMAND test_${t})
 endforeach()
+
+# End-to-end journey through the simulator (same code as the browser preview).
+add_library(sim STATIC ../sim/sim.c)
+target_link_libraries(sim PUBLIC sohail_core)
+add_executable(test_scenario test_scenario.c)
+target_link_libraries(test_scenario sim)
+add_test(NAME scenario COMMAND test_scenario)
 
 # Writes one PPM per expression for eyeballing the faces.
 add_executable(render_faces render_faces.c)

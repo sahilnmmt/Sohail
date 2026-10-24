@@ -269,6 +269,9 @@ void robot_handle(robot_t *r, const robot_event_t *ev, uint32_t now, robot_actio
         r->reacting = false;
     }
     uint32_t in_state = now - r->state_since;
+    if ((int32_t)in_state < 0) {
+        in_state = 0; /* an event stamped slightly before the state began */
+    }
     switch (r->state) {
     case ROBOT_CONNECTING:
         if (in_state >= ROBOT_CONNECT_TIMEOUT_MS) {

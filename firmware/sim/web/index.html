@@ -1,0 +1,453 @@
+<meta charset="utf-8">
+<title>Sohail Robot Bench</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: a lab bench. The robot sits on the left (sticky on wide screens),
+     the controls a tester would reach for sit in labelled trays on the right. */
+  :root {
+    --bg: #eef1f4;
+    --surface: #ffffff;
+    --ink: #17202b;
+    --muted: #5a6776;
+    --line: #d5dbe2;
+    --accent: #0a8fb0;
+    --accent-ink: #ffffff;
+    --shell: #dfe5eb;
+    --shell-edge: #c3ccd6;
+    --bezel: #0b0f14;
+    --ok: #1f9d55;
+    --warn: #c47a00;
+    --bad: #c8372d;
+    --font-display: "Fredoka", "Trebuchet MS", system-ui, sans-serif;
+    --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10151b; --surface: #18202a; --ink: #e6edf3; --muted: #93a1b0; --line: #2a3542;
+      --accent: #4cc9e8; --accent-ink: #062530; --shell: #2a3441; --shell-edge: #3a4656; --bezel: #05080b;
+      --ok: #3fcf7f; --warn: #f0a83a; --bad: #ff6b5f;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10151b; --surface: #18202a; --ink: #e6edf3; --muted: #93a1b0; --line: #2a3542;
+    --accent: #4cc9e8; --accent-ink: #062530; --shell: #2a3441; --shell-edge: #3a4656; --bezel: #05080b;
+    --ok: #3fcf7f; --warn: #f0a83a; --bad: #ff6b5f;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 24px 40px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; display: grid; gap: 20px; }
+  header { display: grid; gap: 4px; }
+  h1 { font-family: var(--font-display); font-weight: 600; font-size: 1.9rem; line-height: 1.15; margin: 0; text-wrap: balance; }
+  .lede { color: var(--muted); margin: 0; max-width: 68ch; }
+  .lede code { font-family: var(--font-mono); font-size: .88em; }
+
+  .bench { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 24px; align-items: start; }
+  @media (max-width: 820px) { .bench { grid-template-columns: minmax(0, 1fr); } }
+
+  /* ---- the robot ---- */
+  .robot-col { display: grid; gap: 12px; justify-items: center; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); }
+  @media (max-width: 820px) { .robot-col { position: static; } }
+  .robot {
+    width: min(100%, 360px); background: var(--shell); border: 1px solid var(--shell-edge);
+    border-radius: 44px 44px 36px 36px; padding: 0 22px 20px; display: grid; justify-items: center; gap: 14px;
+    box-shadow: 0 18px 40px -24px rgba(10, 30, 50, .45);
+  }
+  .touchpad {
+    width: 100%; height: 34px; border: 0; background: transparent; color: var(--muted); cursor: pointer;
+    font: 500 11px/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase;
+    border-bottom: 1px dashed var(--shell-edge); border-radius: 44px 44px 0 0;
+  }
+  .touchpad:hover, .touchpad:focus-visible { color: var(--accent); }
+  .touchpad.flash { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .bezel { background: var(--bezel); padding: 12px; border-radius: 22px; width: 100%; }
+  canvas { display: block; width: 100%; max-width: 100%; aspect-ratio: 240 / 280; image-rendering: pixelated; border-radius: 10px; }
+  .hw { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 10px; }
+  .hwlabel { font: 400 11px/1.3 var(--font-mono); color: var(--muted); }
+  .boot {
+    width: 58px; height: 58px; border-radius: 50%; border: 1px solid var(--shell-edge); cursor: pointer;
+    background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--surface) 90%, var(--accent)), var(--shell));
+    box-shadow: 0 4px 0 var(--shell-edge); touch-action: none; user-select: none; -webkit-user-select: none;
+    font: 600 10px/1 var(--font-mono); color: var(--muted); letter-spacing: .08em;
+  }
+  .boot.down { transform: translateY(3px); box-shadow: 0 1px 0 var(--shell-edge); }
+  .boot:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .holdbar { width: 100%; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  .holdbar > i { display: block; height: 100%; width: 0; background: var(--accent); }
+  .holdbar.reset > i { background: var(--bad); }
+  .readout { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; font: 500 12px/1 var(--font-mono); }
+  .pill { padding: 6px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
+
+  /* ---- trays ---- */
+  .trays { display: grid; gap: 16px; min-width: 0; }
+  .tray { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+  .tray h2 { margin: 0; font: 600 12px/1.2 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .tray p.note { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button.btn {
+    font: 500 14px/1 var(--font-body); padding: 10px 14px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+  }
+  button.btn:hover { border-color: var(--accent); }
+  button.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button.chip { font: 500 13px/1 var(--font-body); padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+  button.chip:hover { border-color: var(--accent); }
+  .switch { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+  .switch input { width: 18px; height: 18px; accent-color: var(--accent); }
+  label.field { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+  select, input[type="text"] {
+    font: 400 14px/1.2 var(--font-body); padding: 9px 10px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--ink); min-width: 0;
+  }
+  .compose { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  .count { font: 400 12px/1 var(--font-mono); color: var(--muted); }
+  .gestures { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+  .gestures div { font-size: 13px; color: var(--muted); }
+  .gestures b { color: var(--ink); font-weight: 600; display: block; }
+
+  .log { font: 400 12.5px/1.55 var(--font-mono); max-height: 260px; overflow: auto; margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+  .log li { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 8px; }
+  .log time { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .log .k-send { color: var(--accent); } .log .k-state { color: var(--muted); } .log .k-warn { color: var(--bad); }
+  footer { color: var(--muted); font-size: 13px; }
+  footer code { font-family: var(--font-mono); font-size: .9em; }
+  .error { color: var(--bad); font-weight: 500; }
+  @media (prefers-reduced-motion: reduce) { .boot, .touchpad { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Sohail robot bench</h1>
+    <p class="lede">This is the robot's real firmware logic (state machine, face animation, text layout and chimes) compiled from the same C code that runs on the ESP32-S3. Wi-Fi, the message server and the other family robots are simulated with the controls on this page.</p>
+  </header>
+
+  <div class="bench">
+    <section class="robot-col" aria-label="Simulated robot">
+      <div class="robot">
+        <button class="touchpad" id="touchpad" type="button" title="Capacitive touch pad on the head">touch pad · tap to pet</button>
+        <div class="bezel"><canvas id="screen" width="240" height="280" aria-label="Robot display, 240 by 280 pixels"></canvas></div>
+        <div class="hw">
+          <span class="hwlabel">ST7789<br>240×280</span>
+          <button class="boot" id="boot" type="button" aria-label="Robot button: press, double-press or hold">BTN</button>
+          <span class="hwlabel" style="text-align:right">ESP32-S3<br>GPIO0</span>
+        </div>
+        <div class="holdbar" id="holdbar" aria-hidden="true"><i></i></div>
+      </div>
+      <div class="readout" aria-live="polite">
+        <span class="pill"><span class="dot" id="netdot"></span><span id="netlabel">offline</span></span>
+        <span class="pill">state: <span id="state">boot</span></span>
+        <span class="pill">unread: <span id="unread">0</span></span>
+        <span class="pill">clock <span id="clock">00:00</span></span>
+      </div>
+    </section>
+
+    <div class="trays">
+      <section class="tray" aria-labelledby="t-msg">
+        <h2 id="t-msg">Messages from the family</h2>
+        <div class="row">
+          <label class="field" for="sender">From
+            <select id="sender">
+              <option>Grandma</option><option>Mum</option><option>Dad</option><option>Ali</option>
+            </select>
+          </label>
+          <button class="btn primary" id="send-nudge" type="button">Send a nudge</button>
+        </div>
+        <div class="row" id="emojis" aria-label="Send an emoji reaction"></div>
+        <div class="compose">
+          <input type="text" id="text" maxlength="140" value="Dinner is ready! Come down in 5 minutes please" aria-label="Text message">
+          <button class="btn" id="send-text" type="button">Send text</button>
+        </div>
+        <span class="count" id="count"></span>
+      </section>
+
+      <section class="tray" aria-labelledby="t-hands">
+        <h2 id="t-hands">On the robot</h2>
+        <p class="note">Use the round button under the screen like the real one: tap, double-tap, or hold it down. Holding for 3 s shows the reset warning; 10 s resets the robot to setup mode. Keyboard: Space or Enter on the button.</p>
+        <div class="gestures">
+          <div><b>Press</b>nudge the group · open a message · next emoji</div>
+          <div><b>Double-press</b>emoji picker · reply · send the picked emoji</div>
+          <div><b>Tap the head</b>pet it · open a message</div>
+        </div>
+        <div class="row">
+          <button class="btn" id="g-press" type="button">Press</button>
+          <button class="btn" id="g-double" type="button">Double-press</button>
+          <button class="btn" id="g-touch" type="button">Tap head</button>
+          <button class="btn" id="skip" type="button">Skip 5 minutes</button>
+        </div>
+      </section>
+
+      <section class="tray" aria-labelledby="t-net">
+        <h2 id="t-net">Setup and network</h2>
+        <div class="row">
+          <label class="switch" for="wifi"><input type="checkbox" id="wifi" checked> Wi-Fi</label>
+          <label class="switch" for="broker"><input type="checkbox" id="broker" checked> Message server</label>
+          <label class="switch" for="sound"><input type="checkbox" id="sound" checked> Sound</label>
+        </div>
+        <div class="row">
+          <button class="btn" id="reset" type="button">Factory reset</button>
+          <button class="btn" id="badpass" type="button">App sends a wrong password</button>
+          <button class="btn" id="goodpass" type="button">App sends the right password</button>
+        </div>
+        <p class="note">After a factory reset the robot shows a 6-digit code for the ESP BLE Provisioning app. With the message server off, the robot keeps working on its own, but nudges show "Offline".</p>
+      </section>
+
+      <section class="tray" aria-labelledby="t-log">
+        <h2 id="t-log">Event log</h2>
+        <ul class="log" id="log"></ul>
+      </section>
+    </div>
+  </div>
+
+  <footer>Built from <code>firmware/components/sohail_core</code> and <code>firmware/sim</code> with zig (wasm32-wasi). The same scenario runs in CI as <code>host_tests/test_scenario.c</code>.</footer>
+</div>
+
+<script>
+(() => {
+  // Event codes: robot_event_type_t in components/sohail_core/include/sohail/robot.h
+  const EV = { TICK: 0, PROV_START: 1, PROV_FAIL: 2, WIFI_UP: 3, WIFI_DOWN: 4, CLOUD_UP: 5, CLOUD_DOWN: 6,
+               MSG: 7, BTN_SHORT: 8, BTN_DOUBLE: 9, BTN_HOLD: 10, BTN_HOLD_RELEASED: 11, BTN_LONG: 12,
+               TOUCH: 13, SEND_FAILED: 14 };
+  const EV_NAME = Object.fromEntries(Object.entries(EV).map(([k, v]) => [v, k]));
+  const ACT = { SEND: 1, CHIME: 2, RESET: 4 };
+  const CHIMES = ['message', 'sent', 'error', 'happy', 'boot'];
+  const MSG = { NUDGE: 0, EMOJI: 1, TEXT: 2 };
+  const EMOJIS = [['happy', '😊'], ['love', '😍'], ['laugh', '😂'], ['sad', '😢'], ['wow', '😮'], ['sleepy', '😴']];
+  const W = 240, H = 280;
+
+  const $ = id => document.getElementById(id);
+  const logEl = $('log');
+  const canvas = $('screen');
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(W, H);
+
+  let w, offset = 0, lastStep = 0, lastRender = 0, lastState = '', pressed = false, pressStart = 0;
+  let audio = null;
+  const simNow = () => Math.floor(performance.now() + offset) >>> 0;
+
+  function clock(ms) {
+    const s = Math.floor(ms / 1000);
+    return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  }
+  function log(text, kind = '') {
+    const li = document.createElement('li');
+    li.innerHTML = '<time></time><span></span>';
+    li.firstChild.textContent = clock(simNow());
+    li.lastChild.textContent = text;
+    if (kind) li.lastChild.className = 'k-' + kind;
+    logEl.prepend(li);
+    while (logEl.children.length > 80) logEl.lastChild.remove();
+  }
+
+  const mem = () => new Uint8Array(w.memory.buffer);
+  function cstr(p) { const m = mem(); let e = p; while (m[e]) e++; return new TextDecoder().decode(m.subarray(p, e)); }
+  function putStr(p, s, maxBytes) {
+    let b = new TextEncoder().encode(s);
+    if (b.length > maxBytes) b = b.subarray(0, maxBytes);
+    const m = mem(); m.set(b, p); m[p + b.length] = 0;
+  }
+
+  function playChime(id) {
+    if (!$('sound').checked || id < 0) return;
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      const n = w.chime(id, 60);
+      const pcm = new Int16Array(w.memory.buffer, w.audio_buf(), n);
+      const buf = audio.createBuffer(1, n, 16000);
+      const ch = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) ch[i] = pcm[i] / 32768;
+      const src = audio.createBufferSource();
+      src.buffer = buf; src.connect(audio.destination); src.start();
+    } catch (e) { /* audio is optional */ }
+  }
+
+  // Runs what the firmware's robot task would do with the action flags.
+  function actions(flags, now) {
+    if (flags & ACT.CHIME) {
+      const c = w.last_chime();
+      playChime(c);
+      log('chime: ' + CHIMES[c]);
+    }
+    if (flags & ACT.SEND) {
+      const t = w.last_send_type();
+      log(t === MSG.NUDGE ? 'sent a nudge to the family group' : 'sent "' + cstr(w.emoji_name(w.last_send_emoji())) + '" to the family group', 'send');
+    }
+    if (flags & ACT.RESET) {
+      log('factory reset: Wi-Fi erased, rebooting into setup', 'warn');
+      setTimeout(factoryReset, 600);
+    }
+  }
+  // Advances the simulated clock to "now" (10 ms button polls, 50 ms robot
+  // ticks) and returns it. Every input is stamped with this one monotonic
+  // clock, like the firmware's single robot task.
+  function advance() {
+    const now = simNow();
+    if (now - lastStep > 2000) lastStep = now - 10; // tab was hidden: don't replay minutes of ticks
+    while ((now - lastStep) >= 10) {
+      lastStep += 10;
+      const r = w.button(pressed ? 1 : 0, lastStep);
+      if (r >= 0) {
+        log('button: ' + EV_NAME[r & 0xff].toLowerCase().replace('btn_', '').replace('_', ' '));
+        actions(r >> 8);
+      }
+      if (lastStep % 50 < 10) actions(w.tick(lastStep));
+    }
+    return lastStep;
+  }
+  function post(ev) { actions(w.post(ev, advance())); }
+
+  function factoryReset() {
+    w.init((Math.random() * 2 ** 31) | 0, advance());
+    const code = String(Math.floor(Math.random() * 1e6)).padStart(6, '0');
+    putStr(w.text_buf(), code, 7);
+    actions(w.start_provisioning(advance()));
+    $('wifi').checked = false; $('broker').checked = false;
+    log('setup mode, pairing code ' + code);
+  }
+
+  function connect() {
+    $('wifi').checked = true;
+    post(EV.WIFI_UP);
+    log('Wi-Fi connected');
+    setTimeout(() => {
+      if (!$('wifi').checked) return;
+      $('broker').checked = true;
+      post(EV.CLOUD_UP);
+      log('connected to the message server');
+    }, 900);
+  }
+
+  function receive(type, emoji = 0, text = '') {
+    const name = $('sender').value;
+    putStr(w.name_buf(), name, 16);
+    putStr(w.text_buf(), text, 140);
+    if (!$('broker').checked) { log('not delivered: the robot is offline (it would get it on reconnect)', 'warn'); return; }
+    const what = type === MSG.NUDGE ? 'a nudge' : type === MSG.EMOJI ? '"' + EMOJIS[emoji][0] + '"' : 'a text';
+    log(name + ' sent ' + what);
+    actions(w.receive(type, emoji, advance()));
+  }
+
+  // ---- main loop: 10 ms button polling, 50 ms robot ticks, 25 fps frames ----
+  function frame() {
+    const now = advance();
+    if (pressed) {
+      const held = simNow() - pressStart, bar = $('holdbar');
+      bar.firstChild.style.width = Math.min(100, held / 100) + '%';
+      bar.classList.toggle('reset', held >= 3000);
+    }
+    if (now - lastRender >= 40) {
+      lastRender = now;
+      w.render(now);
+      const fb = new Uint16Array(w.memory.buffer, w.framebuffer(), W * H);
+      const d = img.data;
+      for (let i = 0, j = 0; i < fb.length; i++, j += 4) {
+        const c = fb[i];
+        d[j] = (c >> 8) & 0xf8; d[j + 1] = (c >> 3) & 0xfc; d[j + 2] = (c << 3) & 0xf8; d[j + 3] = 255;
+      }
+      ctx.putImageData(img, 0, 0);
+      const st = cstr(w.state_name());
+      if (st !== lastState) { log('state → ' + st, 'state'); lastState = st; $('state').textContent = st; }
+      $('unread').textContent = w.unread();
+      $('clock').textContent = clock(now);
+      const wifi = $('wifi').checked, cloud = $('broker').checked && wifi;
+      $('netdot').className = 'dot ' + (cloud ? 'ok' : wifi ? 'warn' : 'bad');
+      $('netlabel').textContent = cloud ? 'online' : wifi ? 'Wi-Fi only' : 'offline';
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ---- wiring ----
+  function setPressed(v) {
+    pressed = v;
+    $('boot').classList.toggle('down', v);
+    if (v) pressStart = simNow();
+    else { $('holdbar').firstChild.style.width = '0'; $('holdbar').classList.remove('reset'); }
+  }
+  function wire() {
+    const boot = $('boot');
+    boot.addEventListener('pointerdown', e => { e.preventDefault(); boot.setPointerCapture(e.pointerId); setPressed(true); });
+    boot.addEventListener('pointerup', () => setPressed(false));
+    boot.addEventListener('pointercancel', () => setPressed(false));
+    boot.addEventListener('keydown', e => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); setPressed(true); } });
+    boot.addEventListener('keyup', e => { if (e.key === ' ' || e.key === 'Enter') setPressed(false); });
+    boot.addEventListener('contextmenu', e => e.preventDefault());
+
+    const touch = () => {
+      const tp = $('touchpad'); tp.classList.add('flash'); setTimeout(() => tp.classList.remove('flash'), 250);
+      log('head touched'); post(EV.TOUCH);
+    };
+    $('touchpad').addEventListener('click', touch);
+    $('g-touch').addEventListener('click', touch);
+    $('g-press').addEventListener('click', () => { log('button: short'); post(EV.BTN_SHORT); });
+    $('g-double').addEventListener('click', () => { log('button: double'); post(EV.BTN_DOUBLE); });
+    $('skip').addEventListener('click', () => { offset += 5 * 60 * 1000; lastStep = simNow() - 10; actions(w.tick(advance())); log('skipped 5 minutes'); });
+
+    $('send-nudge').addEventListener('click', () => receive(MSG.NUDGE));
+    EMOJIS.forEach(([name, glyph], i) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip'; b.textContent = glyph + ' ' + name;
+      b.addEventListener('click', () => receive(MSG.EMOJI, i));
+      $('emojis').append(b);
+    });
+    const text = $('text'), count = $('count');
+    const updateCount = () => {
+      const n = new TextEncoder().encode(text.value).length;
+      count.textContent = n + ' / 140 bytes';
+      $('send-text').disabled = n === 0 || n > 140;
+    };
+    text.addEventListener('input', updateCount); updateCount();
+    $('send-text').addEventListener('click', () => receive(MSG.TEXT, 0, text.value.trim()));
+    text.addEventListener('keydown', e => { if (e.key === 'Enter' && !$('send-text').disabled) $('send-text').click(); });
+
+    $('wifi').addEventListener('change', e => {
+      if (e.target.checked) connect();
+      else { $('broker').checked = false; post(EV.WIFI_DOWN); log('Wi-Fi lost'); }
+    });
+    $('broker').addEventListener('change', e => {
+      if (e.target.checked && !$('wifi').checked) { e.target.checked = false; log('turn Wi-Fi on first', 'warn'); return; }
+      post(e.target.checked ? EV.CLOUD_UP : EV.CLOUD_DOWN);
+      log(e.target.checked ? 'message server back' : 'message server unreachable', e.target.checked ? '' : 'warn');
+    });
+    $('reset').addEventListener('click', factoryReset);
+    $('badpass').addEventListener('click', () => { log('phone app sent a wrong Wi-Fi password', 'warn'); post(EV.PROV_FAIL); });
+    $('goodpass').addEventListener('click', connect);
+  }
+
+  async function start() {
+    try {
+      const bytes = await (await fetch('sohail.wasm')).arrayBuffer();
+      const { instance } = await WebAssembly.instantiate(bytes, {
+        wasi_snapshot_preview1: { random_get: (ptr, len) => { crypto.getRandomValues(new Uint8Array(w.memory.buffer, ptr, len)); return 0; } },
+      });
+      w = instance.exports;
+      w._initialize();
+    } catch (e) {
+      log('could not load sohail.wasm: ' + e.message, 'warn');
+      document.querySelector('.lede').insertAdjacentHTML('beforeend', ' <span class="error">The simulator could not load. Serve this folder over HTTP (python3 -m http.server).</span>');
+      return;
+    }
+    // Open in a working state: an already set-up robot that just got a nudge.
+    lastStep = simNow();
+    w.init((Math.random() * 2 ** 31) | 0, lastStep);
+    post(EV.WIFI_UP);
+    post(EV.CLOUD_UP);
+    log('robot online in group "family"');
+    wire();
+    requestAnimationFrame(frame);
+    setTimeout(() => { $('sender').value = 'Grandma'; receive(MSG.NUDGE); }, 1500);
+  }
+  start();
+})();
+</script>

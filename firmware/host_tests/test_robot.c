@@ -323,6 +323,25 @@ static void timer_wraparound(void)
     CHECK_EQ_INT(r.state, ROBOT_IDLE);
 }
 
+static void time_slightly_backwards_is_harmless(void)
+{
+    /* An event stamped a few ms before the current state began must not
+     * look like a huge elapsed time and fire every timer at once. */
+    robot_t r;
+    online(&r);
+    msg(&r, "nana-1", SOHAIL_MSG_NUDGE);
+    ev(&r, EV_TOUCH);
+    CHECK_EQ_INT(r.state, ROBOT_SHOWING);
+    now -= 10;
+    ev(&r, EV_TICK);
+    CHECK_EQ_INT(r.state, ROBOT_SHOWING);
+    now += 10;
+    ev(&r, EV_BTN_DOUBLE);
+    now -= 5;
+    ev(&r, EV_TICK);
+    CHECK_EQ_INT(r.state, ROBOT_PICK);
+}
+
 int main(void)
 {
     RUN(boot_to_idle);
@@ -339,5 +358,6 @@ int main(void)
     RUN(notify_reminds);
     RUN(factory_reset_gesture);
     RUN(timer_wraparound);
+    RUN(time_slightly_backwards_is_harmless);
     TEST_EXIT();
 }

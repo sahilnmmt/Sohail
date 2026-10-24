@@ -17,15 +17,25 @@ jobs:
           cmake -S firmware/host_tests -B build/host -DCMAKE_BUILD_TYPE=Debug
           cmake --build build/host -j
           ctest --test-dir build/host --output-on-failure
-      - name: Render face previews
+      - name: Render face previews and the test-run storyboard
         run: |
-          mkdir -p build/faces
+          mkdir -p build/faces build/story
           build/host/render_faces build/faces
           python3 firmware/host_tests/contact_sheet.py build/faces build/faces.png
+          build/host/test_scenario build/story
+          python3 firmware/host_tests/contact_sheet.py build/story build/storyboard.png
       - uses: actions/upload-artifact@v4
         with:
           name: face-previews
-          path: build/faces.png
+          path: |
+            build/faces.png
+            build/storyboard.png
+      - name: Build the browser preview and check it matches the committed module
+        run: |
+          pip install ziglang==0.13.0.post1
+          firmware/sim/build_wasm.sh build/web
+          cmp build/web/sohail.wasm firmware/sim/web/sohail.wasm || {
+            echo "::error::firmware/sim/web/sohail.wasm is stale: run firmware/sim/build_wasm.sh and commit it"; exit 1; }
       - name: Check CLI
         run: |
           pip install -r tools/requirements.txt

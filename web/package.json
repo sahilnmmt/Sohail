@@ -1,0 +1,26 @@
+{
+  "name": "sohail-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Sohail accounts website: sign-in, families, invites and robots on Firebase",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "emulators": "firebase emulators:start --project demo-sohail",
+    "test:rules": "firebase emulators:exec --project demo-sohail --only firestore,auth \"vitest run tests/rules\"",
+    "test:e2e": "firebase emulators:exec --project demo-sohail --only firestore,auth \"node tests/e2e/flow.mjs\""
+  },
+  "dependencies": {
+    "firebase": "13.0.0"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "6.0.0",
+    "firebase-tools": "^15.33.0",
+    "playwright": "^1.63.0",
+    "typescript": "5.9.3",
+    "vite": "8.3.4",
+    "vitest": "5.0.3"
+  }
+}

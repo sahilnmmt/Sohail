@@ -1,0 +1,148 @@
+rules_version = '2';
+
+// Sohail accounts. Data model (see web/README.md):
+//   users/{uid}                      profile, private to its owner
+//   families/{familyId}              a family; familyId doubles as the MQTT group id
+//   families/{familyId}/members/{uid} role: owner | adult | child
+//   invites/{code}                   join codes, readable only by someone who knows the code
+//   robots/{deviceId}                which family a robot (sohail-xxxxxx) belongs to
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+
+    function memberPath(familyId, userId) {
+      return /databases/$(database)/documents/families/$(familyId)/members/$(userId);
+    }
+    function isMember(familyId) { return signedIn() && exists(memberPath(familyId, uid())); }
+    function roleIn(familyId) { return get(memberPath(familyId, uid())).data.role; }
+    function isOwner(familyId) { return isMember(familyId) && roleIn(familyId) == 'owner'; }
+    function isAdult(familyId) { return isMember(familyId) && roleIn(familyId) in ['owner', 'adult']; }
+
+    function validName(s) { return s is string && s.size() >= 1 && s.size() <= 40; }
+    // Optional message-server settings shared with the family's app and robots.
+    function validServer(m) {
+      return m is map && m.keys().hasOnly(['host', 'port', 'tls'])
+        && m.host is string && m.host.size() >= 1 && m.host.size() <= 253
+        && m.port is int && m.port >= 1 && m.port <= 65535
+        && m.tls is bool;
+    }
+    function onlyChanged(fields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+    }
+
+    // ---- profiles -----------------------------------------------------------
+    match /users/{userId} {
+      allow read, delete: if signedIn() && uid() == userId;
+      allow create, update: if signedIn() && uid() == userId
+        && request.resource.data.keys().hasOnly(['displayName', 'email', 'createdAt'])
+        && validName(request.resource.data.displayName);
+    }
+
+    // ---- families -----------------------------------------------------------
+    match /families/{familyId} {
+      allow read: if isMember(familyId);
+
+      // Created together with the owner's member document (one batch).
+      // The id must be a valid MQTT group id because robots use it as one.
+      allow create: if signedIn()
+        && familyId.matches('^[A-Za-z0-9]{12,24}$')
+        && request.resource.data.keys().hasOnly(['name', 'ownerUid', 'createdAt', 'server'])
+        && (!('server' in request.resource.data) || validServer(request.resource.data.server))
+        && request.resource.data.ownerUid == uid()
+        && validName(request.resource.data.name)
+        && request.resource.data.createdAt == request.time
+        && getAfter(memberPath(familyId, uid())).data.role == 'owner';
+
+      allow update: if isOwner(familyId) && onlyChanged(['name', 'server'])
+        && validName(request.resource.data.name)
+        && (!('server' in request.resource.data) || validServer(request.resource.data.server));
+      allow delete: if isOwner(familyId);
+
+      match /members/{memberId} {
+        allow read: if isMember(familyId);
+
+        allow create: if signedIn() && memberId == uid()
+          && request.resource.data.keys().hasOnly(['uid', 'role', 'displayName', 'joinedAt', 'invite'])
+          && request.resource.data.uid == uid()
+          && validName(request.resource.data.displayName)
+          && request.resource.data.joinedAt == request.time
+          && (
+            // The founder, in the same batch that creates the family.
+            (request.resource.data.role == 'owner'
+              && !exists(/databases/$(database)/documents/families/$(familyId))
+              && getAfter(/databases/$(database)/documents/families/$(familyId)).data.ownerUid == uid())
+            ||
+            // Anyone else, with a valid, unexpired invite for this family and role.
+            (request.resource.data.invite is string
+              && exists(/databases/$(database)/documents/invites/$(request.resource.data.invite))
+              && get(/databases/$(database)/documents/invites/$(request.resource.data.invite)).data.familyId == familyId
+              && get(/databases/$(database)/documents/invites/$(request.resource.data.invite)).data.role == request.resource.data.role
+              && get(/databases/$(database)/documents/invites/$(request.resource.data.invite)).data.expiresAt > request.time)
+          );
+
+        // Members rename themselves; the owner sets other members' roles.
+        allow update: if
+          (signedIn() && memberId == uid() && onlyChanged(['displayName'])
+            && validName(request.resource.data.displayName))
+          || (isOwner(familyId) && memberId != uid() && onlyChanged(['role'])
+            && request.resource.data.role in ['adult', 'child']);
+
+        // Leave (not the owner), or be removed by the owner. The owner's own
+        // record goes only when the whole family is deleted.
+        allow delete: if
+          (signedIn() && memberId == uid() && resource.data.role != 'owner')
+          || (isOwner(familyId) && memberId != uid())
+          || (isOwner(familyId) && memberId == uid()
+              && !existsAfter(/databases/$(database)/documents/families/$(familyId)));
+      }
+    }
+
+    // "Which families am I in?": a collection-group query over members, where
+    // each user may only see their own membership records.
+    match /{path=**}/members/{memberId} {
+      allow read: if signedIn() && resource.data.uid == uid();
+    }
+
+    // ---- invites ------------------------------------------------------------
+    match /invites/{code} {
+      // Knowing the code is the permission: single reads only, never listing all codes.
+      allow get: if signedIn();
+      // Adults of a family can list that family's invites (query must filter by familyId).
+      allow list: if isAdult(resource.data.familyId);
+
+      allow create: if signedIn()
+        && code.matches('^[A-HJ-NP-Z2-9]{10}$')
+        && request.resource.data.keys().hasOnly(['familyId', 'familyName', 'role', 'createdBy', 'createdAt', 'expiresAt'])
+        && isAdult(request.resource.data.familyId)
+        && request.resource.data.createdBy == uid()
+        && request.resource.data.role in ['adult', 'child']
+        && validName(request.resource.data.familyName)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(7, 'd');
+
+      allow delete: if isAdult(resource.data.familyId);
+    }
+
+    // ---- robots -------------------------------------------------------------
+    match /robots/{deviceId} {
+      allow get: if isMember(resource.data.familyId);
+      allow list: if isMember(resource.data.familyId);
+
+      // First family to register a device id gets it; it stays theirs until an
+      // adult of that family removes it.
+      allow create: if signedIn()
+        && deviceId.matches('^sohail-[0-9a-f]{6}$')
+        && request.resource.data.keys().hasOnly(['familyId', 'name', 'addedBy', 'addedAt'])
+        && isAdult(request.resource.data.familyId)
+        && request.resource.data.addedBy == uid()
+        && validName(request.resource.data.name)
+        && request.resource.data.addedAt == request.time;
+
+      allow update: if isAdult(resource.data.familyId) && onlyChanged(['name']) && validName(request.resource.data.name);
+      allow delete: if isAdult(resource.data.familyId);
+    }
+  }
+}

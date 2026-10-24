@@ -57,6 +57,10 @@ try {
   // ---- Aisha creates an account and a family ----
   const a = await newUser(browser);
   await a.goto(BASE);
+  // Safety: this test creates and deletes accounts. Never let it touch a real project.
+  if (!(await a.isVisible('.emu'))) {
+    throw new Error('Refusing to run: the site is not in emulator mode (build with npm run build:test).');
+  }
   check(!(await a.isVisible('#name')), 'the name field is hidden on the Sign in tab');
   await a.screenshot({ path: `${shots}/01-sign-in.png` });
   await signUp(a, users.aisha);

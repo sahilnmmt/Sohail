@@ -4,9 +4,11 @@
 #include <string.h>
 
 #include "sohail/chime.h"
+#include "sohail/protocol.h"
 #include "sohail/screen.h"
 
-#define SIM_SELF_ID "sohail-sim001"
+static char s_self_id[SOHAIL_ID_MAX + 1] = "sohail-sim001";
+static char s_name[SOHAIL_NAME_MAX + 1] = "Virtual robot";
 
 static robot_t s_robot;
 static screen_t s_screen;
@@ -16,7 +18,7 @@ static int s_msg_seq;
 
 void sim_init(uint32_t seed, uint32_t now_ms)
 {
-    robot_init(&s_robot, SIM_SELF_ID, now_ms);
+    robot_init(&s_robot, s_self_id, now_ms);
     screen_init(&s_screen, SIM_W, SIM_H, seed);
     memset(&s_last, 0, sizeof(s_last));
     s_last.chime = -1;
@@ -59,6 +61,34 @@ uint32_t sim_receive(int type, int emoji, const char *name, const char *text, ui
     ev.msg.emoji = (sohail_emoji_t)emoji;
     snprintf(ev.msg.text, sizeof(ev.msg.text), "%s", text ? text : "");
     return handle(&ev, now_ms);
+}
+
+bool sim_set_identity(const char *device_id, const char *name)
+{
+    if (!sohail_id_valid(device_id) || strlen(name) > SOHAIL_NAME_MAX) {
+        return false;
+    }
+    snprintf(s_self_id, sizeof(s_self_id), "%s", device_id);
+    snprintf(s_name, sizeof(s_name), "%s", name);
+    return true;
+}
+
+int sim_receive_json(const char *json, size_t len, uint32_t now_ms)
+{
+    robot_event_t ev = {.type = EV_MSG};
+    if (sohail_msg_decode(json, len, &ev.msg) != SOHAIL_OK) {
+        return -1;
+    }
+    return (int)handle(&ev, now_ms);
+}
+
+int sim_encode_last_send(const char *msg_id, uint32_t unix_ts, char *out, size_t out_len)
+{
+    sohail_msg_t m = {.type = s_last.send_type, .emoji = s_last.send_emoji, .ts = unix_ts};
+    snprintf(m.id, sizeof(m.id), "%s", msg_id);
+    snprintf(m.from, sizeof(m.from), "%s", s_self_id);
+    snprintf(m.name, sizeof(m.name), "%s", s_name);
+    return sohail_msg_encode(&m, out, out_len);
 }
 
 uint32_t sim_tick(uint32_t now_ms)

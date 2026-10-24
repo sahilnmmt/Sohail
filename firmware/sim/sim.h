@@ -5,6 +5,8 @@
  */
 #pragma once
 
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "sohail/robot.h"
@@ -14,6 +16,15 @@
 #define SIM_SAMPLE_RATE 16000
 
 void sim_init(uint32_t seed, uint32_t now_ms);
+/* Device id used for this robot's messages and to ignore its own echoes
+ * (default "sohail-sim001"). Call before sim_init. False if invalid. */
+bool sim_set_identity(const char *device_id, const char *name);
+/* Decode a message as received over MQTT with the firmware's decoder and
+ * deliver it. Returns the action flags, or -1 if the robot rejects it. */
+int sim_receive_json(const char *json, size_t len, uint32_t now_ms);
+/* Encode the most recent ACT_SEND as the firmware would publish it.
+ * Returns the JSON length, or -1. */
+int sim_encode_last_send(const char *msg_id, uint32_t unix_ts, char *out, size_t out_len);
 /* Simple events (robot_event_type_t). Returns the action flags produced. */
 uint32_t sim_post(int type, uint32_t now_ms);
 uint32_t sim_start_provisioning(const char *code, uint32_t now_ms);

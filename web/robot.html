@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="description" content="A virtual Sohail robot running the real firmware logic, connected to your message server.">
+    <title>Virtual Sohail Robot</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  </head>
+  <body>
+    <header class="top">
+      <a href="/" class="brand"><span class="eyes" aria-hidden="true"><i></i><i></i></span>Sohail</a>
+      <nav><a href="/">Families</a><a href="/robot" aria-current="page">Virtual robot</a></nav>
+    </header>
+    <main class="page robot-page">
+      <div>
+        <h1>Virtual robot</h1>
+        <p class="muted">This robot runs the real firmware logic and connects to a real message server, so your Sohail app can talk to it like a physical robot.</p>
+      </div>
+      <div class="bench">
+        <section class="robot-col" aria-label="Virtual robot">
+          <div class="robot">
+            <button class="touchpad" id="touchpad" type="button">touch pad · tap to pet</button>
+            <div class="bezel"><canvas id="screen" width="240" height="280" aria-label="Robot display"></canvas></div>
+            <div class="hw">
+              <span class="hwlabel" id="hw-id">sohail-······</span>
+              <button class="boot" id="boot" type="button" aria-label="Robot button: press, double-press or hold">BTN</button>
+              <span class="hwlabel right">hold 10 s<br>= reset</span>
+            </div>
+            <div class="holdbar" id="holdbar" aria-hidden="true"><i></i></div>
+          </div>
+          <div class="readout" aria-live="polite">
+            <span class="pill"><span class="dot" id="netdot"></span><span id="netlabel">offline</span></span>
+            <span class="pill">state: <span id="state">boot</span></span>
+            <span class="pill">unread: <span id="unread">0</span></span>
+          </div>
+        </section>
+
+        <div class="trays">
+          <section class="card">
+            <h2>Connection</h2>
+            <dl class="kv">
+              <div><dt>Robot ID</dt><dd><code id="device-id"></code> <button class="btn small ghost" id="copy-id" type="button">Copy</button></dd></div>
+            </dl>
+            <div id="family-pick" hidden>
+              <label class="field">Use a family from your account
+                <select id="family"></select>
+              </label>
+            </div>
+            <form id="conn-form">
+              <label class="field">Family group
+                <input id="group" maxlength="24" required placeholder="Same as in the app's Settings" autocapitalize="none" spellcheck="false">
+              </label>
+              <label class="field">Robot name (shown as sender)
+                <input id="name" maxlength="16" required>
+              </label>
+              <label class="field">Message server
+                <select id="broker-preset">
+                  <option value="wss://broker.hivemq.com:8884/mqtt" data-host="broker.hivemq.com">broker.hivemq.com (public, app port 1883)</option>
+                  <option value="wss://test.mosquitto.org:8081" data-host="test.mosquitto.org">test.mosquitto.org (public, app port 1883)</option>
+                  <option value="wss://broker.emqx.io:8084/mqtt" data-host="broker.emqx.io">broker.emqx.io (public, app port 1883)</option>
+                  <option value="custom">Other (WebSocket URL)…</option>
+                </select>
+              </label>
+              <label class="field" id="custom-field" hidden>WebSocket URL
+                <input id="broker-url" placeholder="wss://your-server:8884/mqtt" spellcheck="false">
+              </label>
+              <p class="error" id="conn-error" role="alert"></p>
+              <div class="actions">
+                <button class="btn primary" id="connect" type="submit">Connect robot</button>
+                <button class="btn ghost" id="disconnect" type="button" hidden>Disconnect</button>
+              </div>
+            </form>
+            <p class="hint">In the Sohail app use the <strong>same server name</strong> with port <strong>1883</strong>, TLS off, and the same family group.</p>
+            <div id="register" hidden>
+              <button class="btn" id="register-btn" type="button">Register this robot in the family</button>
+              <p class="error" id="register-error" role="alert"></p>
+            </div>
+          </section>
+
+          <section class="card">
+            <h2>Use the robot</h2>
+            <p class="muted">Use the round button like the real one: <b>press</b> sends a nudge or opens a message, <b>double-press</b> opens the emoji picker or replies, <b>hold 3 s</b> shows the reset warning. Tap the head to pet it.</p>
+            <div class="actions">
+              <button class="btn small" id="g-press" type="button">Press</button>
+              <button class="btn small" id="g-double" type="button">Double-press</button>
+              <button class="btn small" id="g-touch" type="button">Tap head</button>
+              <label class="check"><input type="checkbox" id="sound" checked> Sound</label>
+            </div>
+          </section>
+
+          <section class="card">
+            <h2>Log</h2>
+            <ul class="log" id="log"></ul>
+          </section>
+        </div>
+      </div>
+    </main>
+    <script type="module" src="/src/robot.ts"></script>
+  </body>
+</html>

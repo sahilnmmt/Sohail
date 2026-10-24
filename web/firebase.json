@@ -12,6 +12,10 @@
     ],
     "rewrites": [
       {
+        "source": "/robot",
+        "destination": "/robot.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

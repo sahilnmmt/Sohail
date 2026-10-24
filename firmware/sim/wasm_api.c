@@ -10,11 +10,35 @@
 
 static char s_name[SOHAIL_NAME_MAX + 1];
 static char s_text[SOHAIL_TEXT_MAX + 1];
+static char s_json[1024]; /* MQTT payloads in and out (the firmware's limit) */
+static char s_id[SOHAIL_ID_MAX + 1];
 static int16_t s_audio[SIM_SAMPLE_RATE]; /* every chime is under a second */
 static button_t s_button;
 
 EXPORT("name_buf") char *name_buf(void) { return s_name; }
 EXPORT("text_buf") char *text_buf(void) { return s_text; }
+EXPORT("json_buf") char *json_buf(void) { return s_json; }
+EXPORT("json_buf_len") int json_buf_len(void) { return (int)sizeof(s_json); }
+EXPORT("id_buf") char *id_buf(void) { return s_id; }
+
+/* Identity from id_buf (device id) and name_buf. 1 on success. */
+EXPORT("set_identity") int w_set_identity(void) { return sim_set_identity(s_id, s_name) ? 1 : 0; }
+
+/* Deliver the len-byte MQTT payload in json_buf. Flags, or -1 if rejected. */
+EXPORT("receive_json") int w_receive_json(int len, uint32_t now)
+{
+    if (len < 0 || len > (int)sizeof(s_json)) return -1;
+    return sim_receive_json(s_json, (size_t)len, now);
+}
+
+/* Encode the last send into json_buf with message id from id_buf. */
+EXPORT("encode_last_send") int w_encode_last_send(uint32_t unix_ts)
+{
+    char msg_id[SOHAIL_ID_MAX + 1];
+    for (int i = 0; i <= SOHAIL_ID_MAX; i++) msg_id[i] = s_id[i];
+    return sim_encode_last_send(msg_id, unix_ts, s_json, sizeof(s_json));
+}
+
 EXPORT("init") void w_init(uint32_t seed, uint32_t now)
 {
     sim_init(seed, now);

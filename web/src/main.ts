@@ -75,6 +75,7 @@ function shell(content: string): string {
       <a href="/" data-link class="brand"><span class="eyes" aria-hidden="true"><i></i><i></i></span>Sohail</a>
       <nav>
         <a href="/" data-link>Families</a>
+        <a href="/robot">Virtual robot</a>
         <a href="/account" data-link>Account</a>
         <button class="link" id="sign-out" type="button">Sign out</button>
       </nav>
@@ -427,7 +428,7 @@ async function renderFamily(id: string) {
         <label class="field">Name<input id="robot-name" maxlength="40" placeholder="Kitchen"></label>
         <button class="btn" id="robot-btn" type="submit">Add robot</button>
       </form>
-      <p class="hint">The ID is shown in the Sohail app's robot list once the robot is online, and in the robot's serial log at start-up.</p>
+      <p class="hint">The ID is shown in the Sohail app's robot list once the robot is online, and in the robot's serial log at start-up. No robot yet? Try the <a href="/robot">virtual robot</a>.</p>
       <p class="error" id="robot-error" role="alert"></p>` : ''}
     </section>
 

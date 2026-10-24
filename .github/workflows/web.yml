@@ -2,9 +2,9 @@ name: web
 
 on:
   push:
-    paths: ["web/**", ".github/workflows/web.yml"]
+    paths: ["web/**", "firmware/sim/**", ".github/workflows/web.yml"]
   pull_request:
-    paths: ["web/**", ".github/workflows/web.yml"]
+    paths: ["web/**", "firmware/sim/**", ".github/workflows/web.yml"]
   workflow_dispatch:
 
 jobs:
@@ -33,6 +33,13 @@ jobs:
         run: |
           npx playwright install --with-deps chromium
           npm run test:e2e
+      - name: Virtual robot test (browser robot over WebSocket, app over TCP)
+        run: |
+          pip install amqtt==0.12.1
+          printf 'listeners:\n  default:\n    type: tcp\n    bind: 127.0.0.1:1883\n  ws:\n    type: ws\n    bind: 127.0.0.1:8080\nplugins:\n  amqtt.plugins.authentication.AnonymousAuthPlugin:\n    allow_anonymous: true\n' > "$RUNNER_TEMP/amqtt.yaml"
+          nohup amqtt -c "$RUNNER_TEMP/amqtt.yaml" > "$RUNNER_TEMP/amqtt.log" 2>&1 &
+          for i in $(seq 1 30); do (echo > /dev/tcp/127.0.0.1/8080) 2>/dev/null && break; sleep 1; done
+          MQTT_TCP=mqtt://127.0.0.1:1883 MQTT_WS=ws://127.0.0.1:8080 npm run test:robot
       - uses: actions/upload-artifact@v4
         if: always()
         with:

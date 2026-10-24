@@ -18,6 +18,11 @@ Family accounts for Sohail robots, on Firebase:
 - **Connection details:** the family's group id and message server, to type
   into the app and the robot firmware.
 
+- **Virtual robot (`/robot`):** a robot in the browser that runs the real
+  firmware logic (`firmware/sim`, compiled to WebAssembly). It connects to a
+  real MQTT server over WebSocket, so the Android app can talk to it before you
+  build hardware. Signed-in adults can register it to their family in one tap.
+
 Uses only Firebase Authentication, Cloud Firestore and Hosting. That fits the
 free Spark plan: no Cloud Functions or billing needed.
 
@@ -68,9 +73,25 @@ npm run dev                                            # terminal 2 → http://1
 Tests:
 - `npm run test:rules`: 21 security-rule tests against the Firestore emulator.
   They check who can read and change families, members, invites and robots.
-- `npm run build && npm run test:e2e`: a real browser runs the whole story with
+- `npm run test:e2e`: builds in emulator mode, then a real browser runs the whole story with
   three users (create, invite, join, roles, robots, delete) and saves
   screenshots to `test-results/e2e`.
+
+## Test the app with the virtual robot
+1. Open `https://YOUR_PROJECT_ID.web.app/robot` on a computer or a second phone.
+2. Enter the family group from the family page (or pick the family if you are
+   signed in), keep **broker.hivemq.com**, and tap **Connect robot**.
+3. In the Android app's Settings, use the same group, server
+   `broker.hivemq.com`, port `1883`, TLS off.
+4. The robot appears in the app's robot list. Send a nudge, emoji or text from
+   the app, and the robot reacts. Press the robot's button to send a nudge back.
+
+Public brokers like broker.hivemq.com are fine for testing, but anyone can read
+the messages there. Your own server needs a `wss://` WebSocket listener for the
+browser robot, because the site is served over HTTPS.
+
+`npm run test:robot` (with an MQTT server on TCP 1883 and WebSocket 8080)
+checks the whole exchange in a real browser.
 
 ## Data model
 | Path | What | Who can read / write |

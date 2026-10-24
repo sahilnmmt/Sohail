@@ -1,0 +1,67 @@
+name: app
+
+on:
+  push:
+    paths: ["app/**", ".github/workflows/app.yml"]
+  pull_request:
+    paths: ["app/**", ".github/workflows/app.yml"]
+  workflow_dispatch:
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.7
+          channel: stable
+          cache: true
+
+      - name: Get packages and analyze
+        run: |
+          flutter pub get
+          flutter analyze
+
+      # The interop tests run the app's Wi-Fi setup code against ESP-IDF's own
+      # device-side provisioning code, built for the runner.
+      - name: Build the ESP-IDF provisioning harness
+        run: |
+          git clone -q --depth 1 --branch v5.3.2 --filter=blob:none --sparse https://github.com/espressif/esp-idf "$RUNNER_TEMP/esp-idf"
+          cd "$RUNNER_TEMP/esp-idf"
+          git sparse-checkout set components/protocomm components/wifi_provisioning components/mbedtls components/protobuf-c
+          git submodule update -q --init --recursive --depth 1 components/mbedtls/mbedtls components/protobuf-c/protobuf-c
+          cd "$GITHUB_WORKSPACE/app"
+          IDF_PATH="$RUNNER_TEMP/esp-idf" tool/prov_harness/build.sh "$RUNNER_TEMP/harness"
+
+      - name: Start a test MQTT broker
+        run: |
+          pip install amqtt==0.12.1
+          printf 'listeners:\n  default:\n    type: tcp\n    bind: 127.0.0.1:1883\nplugins:\n  amqtt.plugins.authentication.AnonymousAuthPlugin:\n    allow_anonymous: true\n' > "$RUNNER_TEMP/amqtt.yaml"
+          nohup amqtt -c "$RUNNER_TEMP/amqtt.yaml" > "$RUNNER_TEMP/amqtt.log" 2>&1 &
+          for i in $(seq 1 30); do (echo > /dev/tcp/127.0.0.1/1883) 2>/dev/null && break; sleep 1; done
+
+      - name: Test (no skips allowed)
+        env:
+          PROV_HARNESS: ${{ runner.temp }}/harness/prov_harness
+          MQTT_TEST_PORT: "1883"
+        run: |
+          flutter test -r expanded | tee "$RUNNER_TEMP/test.log"
+          if grep -q "~[0-9]" "$RUNNER_TEMP/test.log"; then echo "::error::some tests were skipped"; exit 1; fi
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sohail-app-apk
+          path: app/build/app/outputs/flutter-apk/app-release.apk

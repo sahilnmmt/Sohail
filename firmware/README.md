@@ -56,8 +56,9 @@ attached to each run as the `sohail-esp32s3-firmware` artifact.
 2. **Flash both robots** with the same *Group id* (default `family`) and
    different *Display names*.
 3. **Set up Wi-Fi.** On first boot, or after a factory reset, each robot shows
-   *Setup mode* and a 6-digit code. Install Espressif's free **ESP BLE
-   Provisioning** app (Google Play / App Store) and turn on Bluetooth, then:
+   *Setup mode* and a 6-digit code. Use the **Sohail app** (`app/`, see its
+   README) and tap ⊕. Or install Espressif's free **ESP BLE
+   Provisioning** app (Google Play / App Store), turn on Bluetooth, then:
    1. Tap **Provision Device**.
    2. It asks to scan a QR code: tap **I don't have a QR code**.
    3. Pick `PROV_SOHAIL_XXXX` from the list.

@@ -98,9 +98,10 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 static void start_provisioning(void)
 {
     uint8_t mac[6];
-    char service_name[16];
+    char service_name[24];
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
-    snprintf(service_name, sizeof(service_name), "SOHAIL-%02X%02X", mac[4], mac[5]);
+    /* Espressif's ESP BLE Provisioning apps only list names starting "PROV_". */
+    snprintf(service_name, sizeof(service_name), "PROV_SOHAIL_%02X%02X", mac[4], mac[5]);
 
     /* Proof-of-possession: shown on the robot's screen, typed into the app.
      * A fresh random code each time means only someone looking at this

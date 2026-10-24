@@ -55,9 +55,17 @@ attached to each run as the `sohail-esp32s3-firmware` artifact.
    Then set the broker URI to `mqtt://<computer-LAN-IP>:1883` in menuconfig.
 2. **Flash both robots** with the same *Group id* (default `family`) and
    different *Display names*.
-3. **Set up Wi-Fi.** On first boot each robot shows *Setup mode* and a 6-digit
-   code. In Espressif's **ESP BLE Provisioning** app (Android/iOS), pick
-   `SOHAIL-XXXX`, enter the code, then choose your 2.4 GHz network.
+3. **Set up Wi-Fi.** On first boot, or after a factory reset, each robot shows
+   *Setup mode* and a 6-digit code. Install Espressif's free **ESP BLE
+   Provisioning** app (Google Play / App Store) and turn on Bluetooth, then:
+   1. Tap **Provision Device**.
+   2. It asks to scan a QR code: tap **I don't have a QR code**.
+   3. Pick `PROV_SOHAIL_XXXX` from the list.
+   4. Enter the 6-digit code from the robot's screen as the
+      **Proof of Possession** PIN.
+   5. Choose your 2.4 GHz Wi-Fi network and type its password.
+
+   The robot then shows *Connecting...* and goes green.
 4. The status dot (top right) turns **green** when connected to the broker
    (amber = Wi-Fi only, red = offline).
 5. Send to the other robot:

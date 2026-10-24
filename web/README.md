@@ -57,7 +57,10 @@ free Spark plan: no Cloud Functions or billing needed.
      npx firebase login
      npx firebase deploy --project YOUR_PROJECT_ID --only hosting,firestore:rules,firestore:indexes
      ```
-6. Open `https://YOUR_PROJECT_ID.web.app`. To use your own domain, go to
+6. Open `https://YOUR_PROJECT_ID.web.app`. This project's live site is
+   **https://minirobot-app.web.app** (`sohail-family-jbqkl.web.app` serves the
+   same site). `.firebaserc` maps the hosting targets `main` and `legacy` to the
+   two sites. A fork deploying to its own project removes or edits those targets. To use your own domain, go to
    *Hosting → Add custom domain*. If Google sign-in complains, add that domain
    under *Authentication → Settings → Authorized domains*.
 

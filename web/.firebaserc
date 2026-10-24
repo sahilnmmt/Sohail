@@ -1,1 +1,17 @@
-{ "projects": { "default": "demo-sohail" } }
+{
+  "projects": {
+    "default": "demo-sohail"
+  },
+  "targets": {
+    "sohail-family-jbqkl": {
+      "hosting": {
+        "main": [
+          "minirobot-app"
+        ],
+        "legacy": [
+          "sohail-family-jbqkl"
+        ]
+      }
+    }
+  }
+}

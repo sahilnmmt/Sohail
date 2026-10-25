@@ -65,7 +65,7 @@ jobs:
       - name: Build VideoMerger.exe
         run: |
           pyinstaller --noconfirm --clean --log-level WARN --name VideoMerger --console \
-            --collect-all faster_whisper --collect-binaries ctranslate2 --collect-data onnxruntime \
+            --collect-all faster_whisper --collect-binaries ctranslate2 --collect-data onnxruntime --hidden-import pkg_resources \
             VideoMerger.py
           cp "$FFMPEG_DIR/ffmpeg.exe" "$FFMPEG_DIR/ffprobe.exe" dist/VideoMerger/
           cp "$(dirname "$FFMPEG_DIR")/LICENSE.txt" dist/VideoMerger/FFmpeg-LICENSE.txt

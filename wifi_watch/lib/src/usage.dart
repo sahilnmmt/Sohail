@@ -1,5 +1,6 @@
-// Every device ever seen and the data each one used per day, built up from
-// router snapshots. Saved on the phone as JSON.
+// Every device ever seen, when it was online, and the data each one used per
+// day, built up from router snapshots. Saved on the phone as JSON.
+import 'device_kind.dart';
 import 'router/router_source.dart';
 
 class Bytes {
@@ -15,7 +16,18 @@ class Bytes {
   static Bytes fromJson(Object? j) => j is List && j.length == 2 ? Bytes((j[0] as num).toInt(), (j[1] as num).toInt()) : zero;
 }
 
+/// A stretch of time a device was seen online without a break.
+class Session {
+  final DateTime start;
+  DateTime end;
+  Session(this.start, this.end);
+
+  Duration get length => end.difference(start);
+}
+
 class KnownDevice {
+  static const keepSessions = 200;
+
   final String mac;
   String? alias;
   String hostname;
@@ -23,6 +35,19 @@ class KnownDevice {
   Link link;
   final DateTime firstSeen;
   DateTime lastSeen;
+
+  /// The kind you picked; null to guess from the host name.
+  DeviceKind? chosenKind;
+
+  /// You said you know this device. Devices there on the first day count as
+  /// known; ones that join later are unknown until you say otherwise.
+  bool known;
+
+  /// Warn when this device uses more than this many bytes in a day.
+  int? dailyLimit;
+
+  /// Oldest first.
+  final List<Session> sessions;
 
   KnownDevice({
     required this.mac,
@@ -32,7 +57,13 @@ class KnownDevice {
     required this.link,
     required this.firstSeen,
     required this.lastSeen,
-  });
+    this.chosenKind,
+    this.known = true,
+    this.dailyLimit,
+    List<Session>? sessions,
+  }) : sessions = sessions ?? [];
+
+  DeviceKind get kind => chosenKind ?? guessKind(hostname);
 
   /// The name you gave it, else the name it gave the router, else its MAC.
   String get displayName {
@@ -49,6 +80,12 @@ class KnownDevice {
         'link': link.name,
         'first': firstSeen.millisecondsSinceEpoch,
         'last': lastSeen.millisecondsSinceEpoch,
+        if (chosenKind != null) 'kind': chosenKind!.name,
+        if (!known) 'known': false,
+        if (dailyLimit != null) 'limit': dailyLimit,
+        'sessions': [
+          for (final x in sessions) [x.start.millisecondsSinceEpoch, x.end.millisecondsSinceEpoch],
+        ],
       };
 
   static KnownDevice fromJson(Map<String, Object?> j) => KnownDevice(
@@ -59,6 +96,14 @@ class KnownDevice {
         link: Link.values.asNameMap()[j['link']] ?? Link.unknown,
         firstSeen: DateTime.fromMillisecondsSinceEpoch((j['first'] as num).toInt()),
         lastSeen: DateTime.fromMillisecondsSinceEpoch((j['last'] as num).toInt()),
+        chosenKind: DeviceKind.values.asNameMap()[j['kind']],
+        known: j['known'] != false,
+        dailyLimit: (j['limit'] as num?)?.toInt(),
+        sessions: [
+          for (final x in (j['sessions'] as List? ?? const []))
+            Session(DateTime.fromMillisecondsSinceEpoch(((x as List)[0] as num).toInt()),
+                DateTime.fromMillisecondsSinceEpoch((x[1] as num).toInt())),
+        ],
       );
 }
 
@@ -93,7 +138,9 @@ class UsageData {
   /// the live speed is multiplied by the time since the last snapshot, capped
   /// at [maxGap] so time the app was closed is not guessed at.
   /// Returns the devices seen for the first time.
-  List<KnownDevice> record(RouterSnapshot snap, {Duration maxGap = const Duration(seconds: 30)}) {
+  /// A device unseen for longer than [presenceGap] starts a new session.
+  List<KnownDevice> record(RouterSnapshot snap,
+      {Duration maxGap = const Duration(seconds: 30), Duration presenceGap = const Duration(minutes: 5)}) {
     final joined = <KnownDevice>[];
     final seconds = _lastAt == null ? 0.0 : snap.at.difference(_lastAt!).inMilliseconds.clamp(0, maxGap.inMilliseconds) / 1000;
     final today = days.putIfAbsent(dayKey(snap.at), () => {});
@@ -104,6 +151,7 @@ class UsageData {
         d = devices[c.mac] = KnownDevice(
             mac: c.mac, hostname: c.hostname, ip: c.ip, link: c.link, firstSeen: snap.at, lastSeen: snap.at);
         if (hasBaseline) {
+          d.known = false;
           unseenNew.add(c.mac);
           joined.add(d);
         }
@@ -113,6 +161,13 @@ class UsageData {
         ..ip = c.ip
         ..link = c.link
         ..lastSeen = snap.at;
+      final last = d.sessions.isEmpty ? null : d.sessions.last;
+      if (last != null && !snap.at.isBefore(last.end) && snap.at.difference(last.end) <= presenceGap) {
+        last.end = snap.at;
+      } else {
+        d.sessions.add(Session(snap.at, snap.at));
+        if (d.sessions.length > KnownDevice.keepSessions) d.sessions.removeAt(0);
+      }
 
       final used = _used(c, seconds);
       if (used.total > 0) today[c.mac] = (today[c.mac] ?? Bytes.zero) + used;
@@ -141,6 +196,39 @@ class UsageData {
   void _prune(DateTime now) {
     final oldest = dayKey(now.subtract(const Duration(days: keepDays)));
     days.removeWhere((k, _) => k.compareTo(oldest) < 0);
+  }
+
+  /// Devices over their own daily limit today, and whether the whole network
+  /// is over [networkLimit].
+  ({List<KnownDevice> devices, bool network}) overLimit(DateTime now, int? networkLimit) {
+    final today = days[dayKey(now)] ?? const {};
+    final total = today.values.fold(0, (s, b) => s + b.total);
+    return (
+      devices: [
+        for (final d in devices.values)
+          if (d.dailyLimit != null && (today[d.mac]?.total ?? 0) > d.dailyLimit!) d,
+      ],
+      network: networkLimit != null && total > networkLimit,
+    );
+  }
+
+  /// Time online per day for the [n] days ending with [lastDay], oldest first.
+  List<(DateTime, Duration)> onlinePerDay(String mac, DateTime lastDay, int n) {
+    final d = devices[mac];
+    return [
+      for (var i = n - 1; i >= 0; i--)
+        () {
+          final from = DateTime(lastDay.year, lastDay.month, lastDay.day - i);
+          final to = DateTime(from.year, from.month, from.day + 1);
+          var total = Duration.zero;
+          for (final s in d?.sessions ?? const <Session>[]) {
+            final a = s.start.isAfter(from) ? s.start : from;
+            final b = s.end.isBefore(to) ? s.end : to;
+            if (b.isAfter(a)) total += b.difference(a);
+          }
+          return (from, total);
+        }(),
+    ];
   }
 
   Bytes usage(String mac, DateTime day) => days[dayKey(day)]?[mac] ?? Bytes.zero;

@@ -7,9 +7,20 @@ does, so nothing leaves your home network.
 - **Devices:** who is online now, their IP address, Wi-Fi band or wired, live
   speed, and data used today. Offline devices show when they were last seen.
 - **Usage:** total for today, 7 or 30 days, a bar per day, and the top devices.
-- **Device page:** give a device a name ("Mom's phone"), see its last 7 days.
-- **New device alert:** a banner when a device joins for the first time.
+- **Device types:** a phone, TV, laptop, router... icon, guessed from the
+  device's name; you can change it.
+- **Search and filters:** find a device by name, IP or MAC; show all, online
+  or unknown devices.
+- **New and unknown devices:** a banner when a device joins for the first
+  time. It stays *Unknown* until you tap *It's ours*.
+- **Device page:** give a device a name ("Mom's phone"), see its data for the
+  last 7 days, time online per day and its recent visits.
+- **Daily limits:** set a limit for a device or the whole network; a warning
+  shows when it goes over.
 - **Demo mode:** pretend devices, to try the app without a router.
+
+How it compares with Fing and TP-Link Tether: [COMPETITORS.md](COMPETITORS.md).
+The build id is in Settings and in the connection test log.
 
 ## Install the APK
 On your Android phone, open
@@ -67,7 +78,8 @@ router reports, so traffic for this model can be added.
 |---|---|
 | Router login and requests (RSA signature, AES-CBC/GCM) | `lib/src/router/tplink_client.dart`, `tplink_crypto.dart` |
 | Demo network | `lib/src/router/demo_source.dart` |
-| Devices and daily usage, saved on the phone | `lib/src/usage.dart` |
+| Devices, visits and daily usage, saved on the phone | `lib/src/usage.dart` |
+| Device type guessing | `lib/src/device_kind.dart` |
 | Polling while the app is open | `lib/src/monitor.dart` |
 | Screens | `lib/src/ui/` |
 

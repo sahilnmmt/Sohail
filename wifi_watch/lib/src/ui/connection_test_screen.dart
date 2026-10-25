@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../format.dart';
 import '../router/tplink_client.dart';
+import '../version.dart';
 
 class ConnectionTestScreen extends StatefulWidget {
   final String host;
@@ -17,7 +18,7 @@ class ConnectionTestScreen extends StatefulWidget {
 }
 
 class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
-  late final List<String> _lines = ['WiFi Watch connection test, router ${widget.host}, user "${widget.username}"'];
+  late final List<String> _lines = ['WiFi Watch build $appBuild, connection test, router ${widget.host}, user "${widget.username}"'];
   bool _running = true;
   bool? _ok;
 

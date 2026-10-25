@@ -10,7 +10,10 @@ class DailyBarChart extends StatefulWidget {
   final List<(DateTime, int)> days;
   final double height;
 
-  const DailyBarChart({super.key, required this.days, this.height = 160});
+  /// How a value is written, bytes by default.
+  final String Function(int value) format;
+
+  const DailyBarChart({super.key, required this.days, this.height = 160, this.format = formatBytes});
 
   @override
   State<DailyBarChart> createState() => _DailyBarChartState();
@@ -32,7 +35,7 @@ class _DailyBarChartState extends State<DailyBarChart> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '${days.length <= 7 ? formatWeekday(days[sel].$1) : ''} ${formatDate(days[sel].$1)}: ${formatBytes(days[sel].$2)}',
+          '${days.length <= 7 ? formatWeekday(days[sel].$1) : ''} ${formatDate(days[sel].$1)}: ${widget.format(days[sel].$2)}',
           style: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
         ),
         const SizedBox(height: 8),

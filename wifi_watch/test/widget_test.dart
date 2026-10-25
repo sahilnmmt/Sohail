@@ -29,9 +29,31 @@ void main() {
     expect(find.text('Living-Room-TV'), findsOneWidget);
     expect(find.textContaining('New device joined your Wi-Fi: Galaxy-A15'), findsOneWidget);
 
-    await tester.tap(find.text('OK'));
+    // Joined after the first look, so it is unknown until you say it's yours.
+    await tester.tap(find.text('Unknown 1'));
+    await tester.pump();
+    expect(find.text('Galaxy-A15'), findsOneWidget);
+    expect(find.text('Living-Room-TV'), findsNothing);
+
+    await tester.tap(find.text("IT'S OURS"));
     await tester.pump();
     expect(find.textContaining('New device joined'), findsNothing);
+    expect(find.text('Unknown 0'), findsOneWidget);
+
+    await tester.tap(find.textContaining('All '));
+    await tester.enterText(find.byType(TextField), 'tv');
+    await tester.pump();
+    expect(find.text('Living-Room-TV'), findsOneWidget);
+    expect(find.text('Laptop'), findsNothing);
+
+    await tester.tap(find.text('Living-Room-TV'));
+    await tester.pumpAndSettle();
+    expect(find.text('TV / streaming'), findsOneWidget);
+    expect(find.text('I know this device'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Recent visits'), 200);
+    expect(find.text('Time online, last 7 days'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Usage'));
     await tester.pumpAndSettle();

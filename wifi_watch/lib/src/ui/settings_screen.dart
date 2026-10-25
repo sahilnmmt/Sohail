@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../settings.dart';
+import '../version.dart';
 import 'connection_test_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -20,6 +21,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final _host = TextEditingController(text: widget.settings.host);
   late final _user = TextEditingController(text: widget.settings.username);
   late final _password = TextEditingController(text: widget.settings.password);
+  late final _netLimit = TextEditingController(text: widget.settings.networkLimitMb?.toString() ?? '');
   bool _showPassword = false;
 
   AppSettings get _edited {
@@ -29,6 +31,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       username: _user.text.trim(),
       password: _password.text,
       pollSeconds: _poll,
+      networkLimitMb: () {
+        final mb = int.tryParse(_netLimit.text.trim());
+        return mb == null || mb <= 0 ? null : mb;
+      },
     );
     // A different router may speak a different protocol: search again.
     return s.sameRouter(widget.settings) ? s : s.copyWith(variant: () => null);
@@ -66,6 +72,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _host.dispose();
     _user.dispose();
     _password.dispose();
+    _netLimit.dispose();
     super.dispose();
   }
 
@@ -153,12 +160,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
             selected: {_poll},
             onSelectionChanged: (s) => setState(() => _poll = s.single),
           ),
+          const SizedBox(height: 24),
+          TextField(
+            controller: _netLimit,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Daily limit for the whole network',
+              suffixText: 'MB',
+              helperText: 'Optional. Warns when all devices together use more in a day. 1000 MB = 1 GB.',
+              border: OutlineInputBorder(),
+            ),
+          ),
           const SizedBox(height: 32),
           TextButton.icon(
             onPressed: _forget,
             icon: Icon(Icons.delete_outline, color: scheme.error),
             label: Text('Clear usage history', style: TextStyle(color: scheme.error)),
           ),
+          const SizedBox(height: 16),
+          Text('WiFi Watch build $appBuild', style: t.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
         ],
       ),
     );

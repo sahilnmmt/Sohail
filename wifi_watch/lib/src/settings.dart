@@ -14,6 +14,9 @@ class AppSettings {
   final String? variant;
   final int pollSeconds;
 
+  /// Warn when the whole network uses more than this in a day, in MB.
+  final int? networkLimitMb;
+
   const AppSettings({
     this.source = SourceKind.demo,
     this.host = '192.168.0.1',
@@ -21,6 +24,7 @@ class AppSettings {
     this.password = '',
     this.variant,
     this.pollSeconds = 10,
+    this.networkLimitMb,
   });
 
   AppSettings copyWith({
@@ -30,6 +34,7 @@ class AppSettings {
     String? password,
     String? Function()? variant,
     int? pollSeconds,
+    int? Function()? networkLimitMb,
   }) =>
       AppSettings(
         source: source ?? this.source,
@@ -38,6 +43,7 @@ class AppSettings {
         password: password ?? this.password,
         variant: variant != null ? variant() : this.variant,
         pollSeconds: pollSeconds ?? this.pollSeconds,
+        networkLimitMb: networkLimitMb != null ? networkLimitMb() : this.networkLimitMb,
       );
 
   bool sameRouter(AppSettings o) => source == o.source && host == o.host && username == o.username && password == o.password;
@@ -56,6 +62,7 @@ class SettingsStore {
       password: p.getString('${_prefix}password') ?? d.password,
       variant: p.getString('${_prefix}variant'),
       pollSeconds: p.getInt('${_prefix}poll') ?? d.pollSeconds,
+      networkLimitMb: p.getInt('${_prefix}netLimitMb'),
     );
   }
 
@@ -71,5 +78,10 @@ class SettingsStore {
       await p.setString('${_prefix}variant', s.variant!);
     }
     await p.setInt('${_prefix}poll', s.pollSeconds);
+    if (s.networkLimitMb == null) {
+      await p.remove('${_prefix}netLimitMb');
+    } else {
+      await p.setInt('${_prefix}netLimitMb', s.networkLimitMb!);
+    }
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wifi_watch/src/device_kind.dart';
 import 'package:wifi_watch/src/router/router_source.dart';
 import 'package:wifi_watch/src/usage.dart';
 
@@ -43,6 +44,8 @@ void main() {
     final joined = u.record(RouterSnapshot(t0.add(const Duration(minutes: 1)), [_c('A'), _c('C')]));
     expect(joined.map((d) => d.mac), ['C']);
     expect(u.unseenNew, {'C'});
+    expect(u.devices['A']!.known, isTrue);
+    expect(u.devices['C']!.known, isFalse);
     expect(u.devices['B']!.lastSeen, t0);
     expect(u.devices['A']!.lastSeen, t0.add(const Duration(minutes: 1)));
   });
@@ -70,7 +73,10 @@ void main() {
     final u = UsageData();
     u.record(RouterSnapshot(t0, [_c('A', down: 0, up: 0)]));
     u.record(RouterSnapshot(t0.add(const Duration(seconds: 5)), [_c('A', down: 70, up: 7), _c('B')]));
-    u.devices['A']!.alias = "Mom's phone";
+    u.devices['A']!
+      ..alias = "Mom's phone"
+      ..chosenKind = DeviceKind.tablet
+      ..dailyLimit = 5000;
     final back = UsageData.fromJson(u.toJson());
     expect(back.devices['A']!.displayName, "Mom's phone");
     expect(back.devices['B']!.displayName, 'h-B');
@@ -78,5 +84,44 @@ void main() {
     expect(back.usage('A', t0).total, 77);
     expect(back.unseenNew, {'B'});
     expect(back.hasBaseline, isTrue);
+    expect(back.devices['A']!.kind, DeviceKind.tablet);
+    expect(back.devices['A']!.dailyLimit, 5000);
+    expect(back.devices['B']!.known, isFalse);
+    expect(back.devices['A']!.sessions.single.length, const Duration(seconds: 5));
+  });
+
+  test('visits: seen again soon continues, after a gap starts a new one', () {
+    final u = UsageData();
+    for (final m in [0, 1, 2, 3]) {
+      u.record(RouterSnapshot(t0.add(Duration(minutes: m)), [_c('A')]));
+    }
+    u.record(RouterSnapshot(t0.add(const Duration(minutes: 30)), [_c('A')]));
+    final s = u.devices['A']!.sessions;
+    expect(s, hasLength(2));
+    expect(s[0].length, const Duration(minutes: 3));
+    expect(s[1].start, t0.add(const Duration(minutes: 30)));
+    expect(u.onlinePerDay('A', t0, 2).map((d) => d.$2), [Duration.zero, const Duration(minutes: 3)]);
+  });
+
+  test('time online is split at midnight', () {
+    final u = UsageData();
+    final late = DateTime(2026, 10, 23, 23, 50);
+    for (var m = 0; m <= 20; m += 2) {
+      u.record(RouterSnapshot(late.add(Duration(minutes: m)), [_c('A')]));
+    }
+    expect(u.onlinePerDay('A', DateTime(2026, 10, 24), 2).map((d) => d.$2),
+        [const Duration(minutes: 10), const Duration(minutes: 10)]);
+  });
+
+  test('daily limits', () {
+    final u = UsageData(hasBaseline: true);
+    u.days[dayKey(t0)] = {'A': const Bytes(900, 200), 'B': const Bytes(10, 0)};
+    u.devices['A'] = KnownDevice(mac: 'A', hostname: '', ip: '', link: Link.wired, firstSeen: t0, lastSeen: t0, dailyLimit: 1000);
+    u.devices['B'] = KnownDevice(mac: 'B', hostname: '', ip: '', link: Link.wired, firstSeen: t0, lastSeen: t0, dailyLimit: 1000);
+    final over = u.overLimit(t0, 2000);
+    expect(over.devices.map((d) => d.mac), ['A']);
+    expect(over.network, isFalse);
+    expect(u.overLimit(t0, 1000).network, isTrue);
+    expect(u.overLimit(t0, null).network, isFalse);
   });
 }

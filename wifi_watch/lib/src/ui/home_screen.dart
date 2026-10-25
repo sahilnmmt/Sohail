@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../format.dart';
 import '../monitor.dart';
+import '../device_kind.dart';
 import '../router/router_source.dart';
 import '../settings.dart';
 import '../usage.dart';
 import 'bar_chart.dart';
+import 'device_icons.dart';
 import 'device_screen.dart';
 import 'settings_screen.dart';
 
@@ -56,6 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             _StatusBanner(monitor: m, onOpenSettings: _openSettings),
             if (m.usage.unseenNew.isNotEmpty) _NewDevicesBanner(monitor: m, onOpen: _openDevice),
+            _LimitBanner(monitor: m, onOpen: _openDevice),
             Expanded(
               child: _tab == 0
                   ? _DevicesTab(monitor: m, onOpen: _openDevice)
@@ -119,6 +122,41 @@ class _StatusBanner extends StatelessWidget {
   }
 }
 
+class _LimitBanner extends StatelessWidget {
+  final Monitor monitor;
+  final void Function(String mac) onOpen;
+  const _LimitBanner({required this.monitor, required this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final over = monitor.usage.overLimit(DateTime.now(), monitor.networkLimitBytes);
+    if (over.devices.isEmpty && !over.network) return const SizedBox.shrink();
+    final parts = [
+      if (over.network) 'Your network went over its daily limit.',
+      if (over.devices.isNotEmpty) 'Over their daily limit: ${over.devices.map((d) => d.displayName).join(', ')}.',
+    ];
+    return Material(
+      color: scheme.errorContainer,
+      child: InkWell(
+        onTap: over.devices.length == 1 ? () => onOpen(over.devices.single.mac) : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              Icon(Icons.data_usage, size: 18, color: scheme.onErrorContainer),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(parts.join(' '), style: TextStyle(color: scheme.onErrorContainer, fontSize: 13)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _NewDevicesBanner extends StatelessWidget {
   final Monitor monitor;
   final void Function(String mac) onOpen;
@@ -149,30 +187,49 @@ class _NewDevicesBanner extends StatelessWidget {
             },
             child: const Text('VIEW'),
           ),
-        TextButton(onPressed: monitor.markNewSeen, child: const Text('OK')),
+        TextButton(onPressed: monitor.markNewKnown, child: Text(devices.length == 1 ? "IT'S OURS" : 'ALL OURS')),
+        TextButton(onPressed: monitor.markNewSeen, child: const Text('LATER')),
       ],
     );
   }
 }
 
-IconData linkIcon(Link l) => switch (l) {
-      Link.wired => Icons.settings_ethernet,
-      Link.guest => Icons.wifi_tethering,
-      Link.unknown => Icons.device_unknown_outlined,
-      _ => Icons.wifi,
-    };
+enum _Filter { all, online, unknown }
 
-class _DevicesTab extends StatelessWidget {
+class _DevicesTab extends StatefulWidget {
   final Monitor monitor;
   final void Function(String mac) onOpen;
   const _DevicesTab({required this.monitor, required this.onOpen});
 
   @override
+  State<_DevicesTab> createState() => _DevicesTabState();
+}
+
+class _DevicesTabState extends State<_DevicesTab> {
+  _Filter _filter = _Filter.all;
+  String _query = '';
+
+  bool _matches(KnownDevice d) {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    return [d.displayName, d.hostname, d.ip, d.mac, kindLabel(d.kind)].any((t) => t.toLowerCase().contains(q));
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final m = monitor;
+    final m = widget.monitor;
     final now = DateTime.now();
     final today = m.usage.byDevice(now, 1);
-    final devices = m.usage.devices.values.toList()
+    final over = {for (final d in m.usage.overLimit(now, m.networkLimitBytes).devices) d.mac};
+    final unknownCount = m.usage.devices.values.where((d) => !d.known).length;
+    final devices = m.usage.devices.values
+        .where((d) => switch (_filter) {
+              _Filter.all => true,
+              _Filter.online => m.live.containsKey(d.mac),
+              _Filter.unknown => !d.known,
+            })
+        .where(_matches)
+        .toList()
       ..sort((a, b) {
         final online = (m.live.containsKey(b.mac) ? 1 : 0) - (m.live.containsKey(a.mac) ? 1 : 0);
         if (online != 0) return online;
@@ -182,7 +239,7 @@ class _DevicesTab extends StatelessWidget {
         return b.lastSeen.compareTo(a.lastSeen);
       });
 
-    if (devices.isEmpty) {
+    if (m.usage.devices.isEmpty) {
       return Center(
         child: m.state == MonitorState.connecting
             ? const CircularProgressIndicator()
@@ -210,8 +267,46 @@ class _DevicesTab extends StatelessWidget {
               ],
             ),
           ),
-          const Divider(),
-          for (final d in devices) _DeviceTile(device: d, live: m.live[d.mac], today: today[d.mac], onTap: () => onOpen(d.mac)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: TextField(
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                hintText: 'Search name, IP or MAC',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              onChanged: (v) => setState(() => _query = v),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Wrap(
+              spacing: 8,
+              children: [
+                for (final f in _Filter.values)
+                  ChoiceChip(
+                    label: Text(switch (f) {
+                      _Filter.all => 'All ${m.usage.devices.length}',
+                      _Filter.online => 'Online ${m.live.length}',
+                      _Filter.unknown => 'Unknown $unknownCount',
+                    }),
+                    selected: _filter == f,
+                    onSelected: (_) => setState(() => _filter = f),
+                  ),
+              ],
+            ),
+          ),
+          if (devices.isEmpty)
+            const Padding(padding: EdgeInsets.all(24), child: Center(child: Text('No devices match'))),
+          for (final d in devices)
+            _DeviceTile(
+              device: d,
+              live: m.live[d.mac],
+              today: today[d.mac],
+              overLimit: over.contains(d.mac),
+              onTap: () => widget.onOpen(d.mac),
+            ),
           const SizedBox(height: 16),
         ],
       ),
@@ -242,12 +337,15 @@ class _DeviceTile extends StatelessWidget {
   final KnownDevice device;
   final ClientInfo? live;
   final Bytes? today;
+  final bool overLimit;
   final VoidCallback onTap;
-  const _DeviceTile({required this.device, required this.live, required this.today, required this.onTap});
+  const _DeviceTile(
+      {required this.device, required this.live, required this.today, required this.overLimit, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final t = Theme.of(context).textTheme;
     final online = live != null;
     final details = <String>[
       if (online) device.ip,
@@ -259,25 +357,53 @@ class _DeviceTile extends StatelessWidget {
       leading: CircleAvatar(
         backgroundColor: online ? scheme.primaryContainer : scheme.surfaceContainerHighest,
         foregroundColor: online ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
-        child: Icon(linkIcon(device.link)),
+        child: Icon(kindIcon(device.kind)),
       ),
-      title: Text(device.displayName,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: online ? null : TextStyle(color: scheme.onSurfaceVariant)),
+      title: Row(
+        children: [
+          Flexible(
+            child: Text(device.displayName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: online ? null : TextStyle(color: scheme.onSurfaceVariant)),
+          ),
+          if (!device.known) ...[
+            const SizedBox(width: 6),
+            _Tag(text: 'Unknown', bg: scheme.tertiaryContainer, fg: scheme.onTertiaryContainer),
+          ],
+          if (overLimit) ...[
+            const SizedBox(width: 6),
+            Icon(Icons.warning_amber_rounded, size: 18, color: scheme.error, semanticLabel: 'Over its daily limit'),
+          ],
+        ],
+      ),
       subtitle: Text(details.join(' · '), maxLines: 1, overflow: TextOverflow.ellipsis),
       trailing: online && live!.downBps != null
           ? Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text('↓ ${formatSpeed(live!.downBps!)}', style: Theme.of(context).textTheme.bodySmall),
-                Text('↑ ${formatSpeed(live!.upBps ?? 0)}', style: Theme.of(context).textTheme.bodySmall),
+                Text('↓ ${formatSpeed(live!.downBps!)}', style: t.bodySmall),
+                Text('↑ ${formatSpeed(live!.upBps ?? 0)}', style: t.bodySmall),
               ],
             )
           : null,
     );
   }
+}
+
+class _Tag extends StatelessWidget {
+  final String text;
+  final Color bg;
+  final Color fg;
+  const _Tag({required this.text, required this.bg, required this.fg});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(4)),
+        child: Text(text, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: fg)),
+      );
 }
 
 class _UsageTab extends StatefulWidget {

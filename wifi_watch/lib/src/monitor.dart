@@ -1,10 +1,12 @@
 // Polls the router while the app is open and keeps the usage history.
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'device_kind.dart';
 import 'router/demo_source.dart';
 import 'router/router_source.dart';
 import 'router/tplink_client.dart';
@@ -106,7 +108,9 @@ class Monitor extends ChangeNotifier {
     try {
       final snap = await source.fetch();
       if (!identical(source, _source)) return;
-      usage.record(snap, maxGap: Duration(seconds: _settings.pollSeconds * 3));
+      usage.record(snap,
+          maxGap: Duration(seconds: _settings.pollSeconds * 3),
+          presenceGap: Duration(seconds: max(300, _settings.pollSeconds * 3)));
       live = {for (final c in snap.clients) c.mac: c};
       updatedAt = snap.at;
       state = MonitorState.ok;
@@ -140,6 +144,33 @@ class Monitor extends ChangeNotifier {
     notifyListeners();
     save();
   }
+
+  void _changeDevice(String mac, void Function(KnownDevice d) change) {
+    final d = usage.devices[mac];
+    if (d == null) return;
+    change(d);
+    notifyListeners();
+    save();
+  }
+
+  void setKind(String mac, DeviceKind? kind) => _changeDevice(mac, (d) => d.chosenKind = kind);
+
+  void setKnown(String mac, bool known) => _changeDevice(mac, (d) {
+        d.known = known;
+        if (known) usage.unseenNew.remove(mac);
+      });
+
+  void setDailyLimit(String mac, int? bytes) => _changeDevice(mac, (d) => d.dailyLimit = bytes);
+
+  /// Marks every new device as known.
+  void markNewKnown() {
+    for (final mac in usage.unseenNew) {
+      usage.devices[mac]?.known = true;
+    }
+    markNewSeen();
+  }
+
+  int? get networkLimitBytes => _settings.networkLimitMb == null ? null : _settings.networkLimitMb! * 1000000;
 
   void markNewSeen() {
     if (usage.unseenNew.isEmpty) return;

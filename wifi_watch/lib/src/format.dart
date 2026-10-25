@@ -20,6 +20,15 @@ String formatSpeed(double bytesPerSecond) {
   return '${bits.toStringAsFixed(0)} bps';
 }
 
+String formatDuration(Duration d) {
+  if (d.inMinutes < 1) return d == Duration.zero ? '0 min' : '<1 min';
+  if (d.inHours < 1) return '${d.inMinutes} min';
+  final m = d.inMinutes % 60;
+  return m == 0 ? '${d.inHours} h' : '${d.inHours} h $m min';
+}
+
+String formatTime(DateTime d) => '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+
 String formatAgo(DateTime t, DateTime now) {
   final d = now.difference(t);
   if (d.inMinutes < 1) return 'just now';

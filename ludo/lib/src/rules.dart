@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 const _rules = [
   'Each player has 4 tokens. Be the first to bring all 4 into the centre.',
-  'Roll a 6 to move a token out of the yard onto your start square.',
+  'Roll a 6 to move a token out of the yard onto your start square. '
+      'If all your tokens are in the yard and you miss a 6 three turns in a '
+      'row, your next roll is a 6.',
   'Tokens move clockwise around the board, then up your coloured home '
       'column. You need the exact number to reach the centre.',
   'Land on an opponent to capture it and send it back to its yard.',

@@ -18,7 +18,8 @@ browser when asked).
    If there is only one real choice, the token moves by itself.
 3. The pause button opens the menu: rules, restart or quit.
 
-Rules: a 6 brings a token out; a 6, a capture or bringing a token home earns
+Rules: a 6 brings a token out (with no token on the board, a player who
+misses a 6 three turns in a row gets one on the next roll); a 6, a capture or bringing a token home earns
 another roll; three 6s in a row lose the turn; start and star squares are
 safe; reaching the centre needs an exact roll. Play goes on until every
 player has a place.

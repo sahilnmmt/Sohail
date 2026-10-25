@@ -102,6 +102,36 @@ void main() {
       expect(g.current.color, LudoColor.green);
     });
 
+    test('a player stuck in the yard gets a six after 3 misses', () {
+      final g = LudoGame(const [
+        Player(LudoColor.red),
+        Player(LudoColor.green),
+      ], random: _NeverSix());
+      for (var turn = 0; turn < yardMissLimit; turn++) {
+        expect(g.roll(g.rollDie()), RollResult.noMoves); // red
+        expect(g.roll(g.rollDie()), RollResult.noMoves); // green
+      }
+      expect(g.yardMisses[LudoColor.red], yardMissLimit);
+      expect(g.rollDie(), 6);
+      expect(g.roll(6), RollResult.mustMove);
+      expect(g.yardMisses[LudoColor.red], 0);
+      g.move(0);
+      // With a token on the board, rolls are random again.
+      expect(g.rollDie(), isNot(6));
+    });
+
+    test('misses only count while stuck in the yard', () {
+      final g = twoPlayers();
+      g.tokens[LudoColor.red]![0] = 10;
+      for (var i = 0; i < 5; i++) {
+        g.roll(2); // red moves
+        g.move(0);
+        g.roll(1); // yellow
+      }
+      expect(g.yardMisses[LudoColor.red], 0);
+      expect(g.yardMisses[LudoColor.yellow], 5);
+    });
+
     test('only safe squares are the starts and stars', () {
       expect(
         [
@@ -208,4 +238,13 @@ void main() {
       expect(wins, greaterThan(60));
     });
   });
+}
+
+class _NeverSix implements Random {
+  @override
+  int nextInt(int max) => 0;
+  @override
+  bool nextBool() => false;
+  @override
+  double nextDouble() => 0;
 }

@@ -27,6 +27,7 @@ const int lastTrackStep = 50;
 const int home = 56;
 const int trackLength = 52;
 const int tokensPerPlayer = 4;
+const int yardMissLimit = 3;
 
 enum TurnPhase { roll, move, over }
 
@@ -73,7 +74,9 @@ class MoveResult {
 /// - three sixes in a row lose the turn;
 /// - landing on an opponent captures it (sends it back to the yard), except
 ///   on the start squares and star squares, which are safe;
-/// - a token must reach home with an exact roll.
+/// - a token must reach home with an exact roll;
+/// - a player stuck in the yard is given a six after [yardMissLimit] turns
+///   in a row without one, so nobody waits long to start.
 class LudoGame {
   LudoGame(List<Player> players, {Random? random})
     : players = List.unmodifiable(players),
@@ -86,12 +89,17 @@ class LudoGame {
     }
     for (final p in players) {
       tokens[p.color] = List.filled(tokensPerPlayer, inYard);
+      yardMisses[p.color] = 0;
     }
   }
 
   final List<Player> players;
   final Random _random;
   final Map<LudoColor, List<int>> tokens = {};
+
+  /// Turns in a row each player has rolled without a six while having no
+  /// token on the board.
+  final Map<LudoColor, int> yardMisses = {};
 
   /// Colours in the order they finished.
   final List<LudoColor> ranking = [];
@@ -141,7 +149,17 @@ class LudoGame {
       if (targetFor(tokens[c]![i], roll) != null) i,
   ];
 
-  int rollDie() => _random.nextInt(6) + 1;
+  /// No token on the board: only a six lets the player move.
+  bool isStuckInYard(LudoColor c) =>
+      tokens[c]!.every((t) => t == inYard || t == home);
+
+  /// A random roll for the current player, or a six once they have missed
+  /// [yardMissLimit] times in a row while stuck in the yard.
+  int rollDie() {
+    final c = current.color;
+    if (isStuckInYard(c) && yardMisses[c]! >= yardMissLimit) return 6;
+    return _random.nextInt(6) + 1;
+  }
 
   /// Applies a roll for the current player.
   RollResult roll([int? value]) {
@@ -150,6 +168,8 @@ class LudoGame {
     if (v < 1 || v > 6) throw ArgumentError.value(v, 'value');
     dice = v;
     lastRoller = current.color;
+    final c = current.color;
+    yardMisses[c] = isStuckInYard(c) && v != 6 ? yardMisses[c]! + 1 : 0;
     sixesInRow = v == 6 ? sixesInRow + 1 : 0;
     if (sixesInRow == 3) {
       _endTurn(extraTurn: false);

@@ -240,9 +240,19 @@ class FakeTplinkRouter {
     req.response.write(await _encrypt(_ex ? _exReply(plain) : _mrReply(plain)));
   }
 
+  /// The router's traffic statistics switch (DEV2_STAT_CFG).
+  bool statsOn = false;
+
   String _exReply(String plain) {
     final j = jsonDecode(plain) as Map;
     final oid = j['oid'];
+    if (oid == 'DEV2_STAT_CFG' && j['operation'] == 'so') {
+      statsOn = (j['data'] as Map)['enable'] == '1';
+      return jsonEncode({'errorcode': 0, 'success': true});
+    }
+    // Wired hosts are on Ethernet port i + 1, alone.
+    final wired = [for (final (i, h) in hosts.indexed) if (h.connType == 0) (i, h)];
+    final wifi = [for (final (i, h) in hosts.indexed) if (h.connType != 0 && h.totalRx != null) (i, h)];
     final Object? data = switch (oid) {
       'DEV2_HOST_ENTRY' => [
           for (final h in hosts)
@@ -253,19 +263,36 @@ class FakeTplinkRouter {
               'IPAddress': h.ip,
               'hostName': h.name,
               'X_TP_Vendor': 'vivo Mobile Communication',
+              'layer1Interface': h.connType == 0 ? 'Device.Ethernet.Interface.${hosts.indexOf(h) + 1}.' : '',
               'stack': '1,0,0,0,0,0',
             },
         ],
       'DEV2_DEV_INFO' => {'modelName': model, 'hardwareVersion': '$model v1', 'softwareVersion': '1.1.0'},
-      // Wi-Fi association counters, each Stats object at its device's stack.
+      // Like the XX530v: association counters count packets, bytes stay 0.
       'DEV2_WIFI_ASSOC_DEV' => [
-        for (final (i, h) in hosts.indexed)
-          if (h.connType != 0 && h.totalRx != null) {'MACAddress': h.mac, 'stack': '1,${i + 1},0,0,0,0'},
+        for (final (i, _) in wifi) {'MACAddress': hosts[i].mac.toLowerCase(), 'stack': '3,${i + 1},0,0,0,0'},
       ],
       'DEV2_WIFI_ASSOC_DEV_STAT' => [
-        for (final (i, h) in hosts.indexed.toList().reversed)
-          if (h.connType != 0 && h.totalRx != null)
-            {'bytesSent': '${h.totalRx}', 'bytesReceived': '${h.totalTx}', 'stack': '1,${i + 1},0,0,0,0'},
+        for (final (i, _) in wifi)
+          {'bytesSent': '0', 'bytesReceived': '0', 'packetsSent': '900', 'packetsReceived': '400', 'stack': '3,${i + 1},0,0,0,0'},
+      ],
+      // The access point's client table has the bytes, Stats at the same stack.
+      'DEV2_WIFI_APDEV_ASSOCDEV' => [
+        for (final (i, h) in wifi) {'MACAddress': h.mac, 'X_TP_HostName': h.name, 'stack': '1,1,2,${i + 1},0,0'},
+      ],
+      'DEV2_WIFI_APDEV_STATS' => [
+        for (final (i, h) in wifi.reversed)
+          {'bytesSent': '${h.totalRx}', 'bytesReceived': '${h.totalTx}', 'stack': '1,1,2,${i + 1},0,0'},
+      ],
+      'DEV2_ETH_INTF_STATS' => [
+        for (final (i, h) in wired)
+          {'bytesSent': '${h.totalRx ?? 0}', 'bytesReceived': '${h.totalTx ?? 0}', 'stack': '${i + 1},0,0,0,0,0'},
+      ],
+      'DEV2_STAT_CFG' => {'enable': statsOn ? '1' : '0', 'interval': '10', 'action': '0'},
+      'DEV2_STAT_ENTRY' => [
+        if (statsOn)
+          for (final h in hosts)
+            {'ipAddress': h.ip, 'totalBytesRx': '${(h.totalRx ?? 0) + 1}', 'totalBytesTx': '${(h.totalTx ?? 0) + 1}'},
       ],
       '/cgi/logout' => null,
       _ => throw StateError('unknown oid $oid'),

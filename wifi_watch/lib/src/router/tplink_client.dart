@@ -58,7 +58,10 @@ class _Act {
   final String mrType;
   final String exType;
   final List<String> attrs;
-  const _Act(this.oid, this.mrType, this.exType, [this.attrs = const []]);
+
+  /// Values to set (EX firmware only).
+  final Map<String, String> values;
+  const _Act(this.oid, this.mrType, this.exType, [this.attrs = const [], this.values = const {}]);
 
   static _Act gl(String oid, [List<String> attrs = const []]) => _Act(oid, '5', 'gl', attrs);
   static _Act get(String oid, [List<String> attrs = const []]) => _Act(oid, '1', 'go', attrs);
@@ -95,6 +98,8 @@ class TplinkClient implements RouterSource {
   bool _statsSupported = true;
   bool _exStatsSupported = true;
   bool _exAssocSupported = true;
+  bool _exApDevSupported = true;
+  bool _exPortsSupported = true;
 
   /// Last byte counters per MAC, to work out speed when the router reports
   /// only totals.
@@ -289,7 +294,8 @@ class TplinkClient implements RouterSource {
   }
 
   _Act _hostsAct() => variant!.protocol == TpProtocol.ex
-      ? _Act.gl('DEV2_HOST_ENTRY', ['active', 'X_TP_LanConnType', 'physAddress', 'IPAddress', 'hostName', 'X_TP_Vendor'])
+      ? _Act.gl('DEV2_HOST_ENTRY',
+          ['active', 'X_TP_LanConnType', 'physAddress', 'IPAddress', 'hostName', 'X_TP_Vendor', 'layer1Interface'])
       : _Act.gl('LAN_HOST_ENTRY', ['IPAddress', 'MACAddress', 'hostName', 'X_TP_ConnType', 'active']);
 
   Future<void> _fetchKey(String path) async {
@@ -337,7 +343,7 @@ class TplinkClient implements RouterSource {
     final rows = (await _query([_hostsAct()]))[0];
     final now = DateTime.now();
 
-    final stats = ex ? await _exTraffic() : <String, Map<String, String>>{};
+    final stats = ex ? await _exTraffic(rows) : <String, Map<String, String>>{};
     if (!ex && _statsSupported) {
       try {
         for (final s in (await _query([_Act.gl('STAT_ENTRY')]))[0]) {
@@ -356,12 +362,12 @@ class TplinkClient implements RouterSource {
       final mac = normalizeMac(r[ex ? 'physAddress' : 'MACAddress'] ?? '');
       if (mac.isEmpty) continue;
       final type = int.tryParse(r[ex ? 'X_TP_LanConnType' : 'X_TP_ConnType'] ?? '');
-      final s = stats[mac];
-      int? num(String k) => s == null ? null : int.tryParse(s[k] ?? '');
-      // Traffic statistics first; Wi-Fi association counters (bytes the
-      // access point sent to the device are its download) otherwise.
-      var totalDown = num('totalBytesRx') ?? num('wifiBytesDown');
-      final totalUp = num('totalBytesTx') ?? num('wifiBytesUp');
+      final s = {...?stats['ip:${r['IPAddress']}'], ...?stats[mac]};
+      int? num(String k) => int.tryParse(s[k] ?? '');
+      // Traffic statistics first, then Wi-Fi counters, then the device's
+      // own Ethernet port. Bytes the router sends a device are its download.
+      var totalDown = num('totalBytesRx') ?? num('wifiBytesDown') ?? num('portBytesDown');
+      final totalUp = num('totalBytesTx') ?? num('wifiBytesUp') ?? num('portBytesUp');
       // Older firmware counts both directions together.
       totalDown ??= totalUp == null ? num('totalBytes') : null;
       var downBps = num('currBytesRx')?.toDouble();
@@ -391,44 +397,127 @@ class TplinkClient implements RouterSource {
     return RouterSnapshot(now, clients);
   }
 
-  /// Per-MAC traffic fields on EX firmware, from the traffic statistics
-  /// table and from Wi-Fi association counters, whichever it has. A table
-  /// the router refuses is not asked for again.
-  Future<Map<String, Map<String, String>>> _exTraffic() async {
+  /// Per-device traffic fields on EX firmware, by MAC (or `ip:` address),
+  /// from whichever source this router fills in:
+  /// - DEV2_STAT_ENTRY: the router's traffic statistics, when turned on.
+  /// - DEV2_WIFI_APDEV_ASSOCDEV + _STATS: Wi-Fi clients with byte counts
+  ///   (the XX530v counts here).
+  /// - DEV2_WIFI_ASSOC_DEV + _STAT: Wi-Fi clients; the XX530v leaves the
+  ///   bytes at 0 while counting packets, which means "not counted".
+  /// - DEV2_ETH_INTF_STATS: Ethernet ports, used for a wired device that has
+  ///   its port to itself.
+  /// A table the router refuses is not asked for again.
+  Future<Map<String, Map<String, String>>> _exTraffic(List<Map<String, String>> hosts) async {
     final out = <String, Map<String, String>>{};
     String? macOf(Map<String, String> r) => r['macAddress'] ?? r['MACAddress'] ?? r['physAddress'];
+
     if (_exStatsSupported) {
       try {
         for (final r in (await _query([_Act.gl('DEV2_STAT_ENTRY')]))[0]) {
           final mac = macOf(r);
-          if (mac != null) out[normalizeMac(mac)] = r;
+          final ip = r['ipAddress'] ?? r['IPAddress'];
+          if (mac != null) {
+            out[normalizeMac(mac)] = r;
+          } else if (ip != null) {
+            out['ip:$ip'] = r;
+          }
         }
       } catch (e) {
         _exStatsSupported = false;
         log?.call('No DEV2_STAT_ENTRY: $e');
       }
     }
+
+    Future<void> wifi(String devOid, String statOid) async {
+      final devs = (await _query([_Act.gl(devOid)]))[0];
+      final stats = (await _query([_Act.gl(statOid)]))[0];
+      // A Stats object sits at its device's stack; else match by order.
+      final byStack = {for (final x in stats) x['stack']: x};
+      for (final (i, d) in devs.indexed) {
+        final mac = macOf(d);
+        if (mac == null) continue;
+        final st = byStack[d['stack']] ?? (stats.length == devs.length ? stats[i] : const <String, String>{});
+        final down = int.tryParse(st['bytesSent'] ?? ''), up = int.tryParse(st['bytesReceived'] ?? '');
+        final packets = (int.tryParse(st['packetsSent'] ?? '') ?? 0) + (int.tryParse(st['packetsReceived'] ?? '') ?? 0);
+        if (down == null && up == null) continue;
+        if ((down ?? 0) + (up ?? 0) == 0 && packets > 0) continue;
+        final entry = out.putIfAbsent(normalizeMac(mac), () => {});
+        if (entry.containsKey('wifiBytesDown')) continue;
+        entry.addAll({'wifiBytesDown': '${down ?? 0}', 'wifiBytesUp': '${up ?? 0}'});
+      }
+    }
+
+    if (_exApDevSupported) {
+      try {
+        await wifi('DEV2_WIFI_APDEV_ASSOCDEV', 'DEV2_WIFI_APDEV_STATS');
+      } catch (e) {
+        _exApDevSupported = false;
+        log?.call('No access point client counters: $e');
+      }
+    }
     if (_exAssocSupported) {
       try {
-        final assoc = (await _query([_Act.gl('DEV2_WIFI_ASSOC_DEV')]))[0];
-        final stat = (await _query([_Act.gl('DEV2_WIFI_ASSOC_DEV_STAT')]))[0];
-        // A Stats object sits at its device's stack; else match by order.
-        final byStack = {for (final x in stat) x['stack']: x};
-        for (final (i, a) in assoc.indexed) {
-          final mac = macOf(a);
-          if (mac == null) continue;
-          final st = byStack[a['stack']] ?? (stat.length == assoc.length ? stat[i] : const <String, String>{});
-          final merged = {...a, ...st};
-          final down = merged['bytesSent'], up = merged['bytesReceived'];
-          if (down == null && up == null) continue;
-          out.putIfAbsent(normalizeMac(mac), () => {}).addAll({'wifiBytesDown': ?down, 'wifiBytesUp': ?up});
-        }
+        await wifi('DEV2_WIFI_ASSOC_DEV', 'DEV2_WIFI_ASSOC_DEV_STAT');
       } catch (e) {
         _exAssocSupported = false;
         log?.call('No Wi-Fi association counters: $e');
       }
     }
+
+    // Wired devices: the counters of their Ethernet port, if nothing else
+    // shares that port. (A second router in router mode is one device on
+    // its port, so this is all the traffic behind it.)
+    final byPort = <int, List<Map<String, String>>>{};
+    for (final h in hosts) {
+      if (h['active'] == '0' || h['X_TP_LanConnType'] != '0') continue;
+      final port = ethernetPort(h['layer1Interface'] ?? '');
+      if (port != null) byPort.putIfAbsent(port, () => []).add(h);
+    }
+    if (_exPortsSupported && byPort.values.any((l) => l.length == 1)) {
+      try {
+        final ports = {
+          for (final p in (await _query([_Act.gl('DEV2_ETH_INTF_STATS')]))[0])
+            int.tryParse((p['stack'] ?? '').split(',').first): p,
+        };
+        byPort.forEach((port, hs) {
+          final p = ports[port];
+          final mac = macOf(hs.first);
+          if (hs.length != 1 || p == null || mac == null) return;
+          out.putIfAbsent(normalizeMac(mac), () => {}).addAll({
+            'portBytesDown': ?p['bytesSent'],
+            'portBytesUp': ?p['bytesReceived'],
+          });
+        });
+      } catch (e) {
+        _exPortsSupported = false;
+        log?.call('No Ethernet port counters: $e');
+      }
+    }
     return out;
+  }
+
+  /// `Device.Ethernet.Interface.3.` -> 3.
+  static int? ethernetPort(String layer1Interface) =>
+      int.tryParse(RegExp(r'Ethernet\.Interface\.(\d+)').firstMatch(layer1Interface)?.group(1) ?? '');
+
+  /// Whether the router's own traffic statistics are on, or null if this
+  /// router has no such switch.
+  Future<bool?> trafficStatsEnabled() async {
+    if (variant?.protocol != TpProtocol.ex) return null;
+    try {
+      final rows = (await _query([_Act.get('DEV2_STAT_CFG')]))[0];
+      return rows.isEmpty ? null : rows.first['enable'] == '1';
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Turns the router's traffic statistics on or off. Changes a router
+  /// setting: only when the user asks.
+  Future<void> setTrafficStats(bool on) async {
+    await _query([_Act('DEV2_STAT_CFG', '2', 'so', const [], {'enable': on ? '1' : '0'})]);
+    _exStatsSupported = true;
+    log?.call('Router traffic statistics turned ${on ? 'on' : 'off'}');
   }
 
   static Link _mrLink(int? t) => switch (t) {
@@ -482,6 +571,7 @@ class TplinkClient implements RouterSource {
   /// Looked at first, with a sample of their values.
   static const _likelyTraffic = [
     'DEV2_STAT_CFG',
+    'DEV2_ETH_INTF_STATS',
     'DEV2_STAT_ENTRY',
     'DEV2_WIFI_ASSOC_DEV',
     'DEV2_WIFI_ASSOC_DEV_STAT',
@@ -498,7 +588,12 @@ class TplinkClient implements RouterSource {
         final rows = (await _query([act]))[0];
         final keys = <String>{for (final r in rows) ...r.keys}..remove('stack');
         log?.call('$oid (${act.exType}): ${rows.length} entries, fields: ${keys.take(40).join(', ')}');
-        if (_likelyTraffic.contains(oid) && rows.isNotEmpty) {
+        if (oid == 'DEV2_HOST_ENTRY' || oid == 'DEV2_ETH_INTF_STATS') {
+          for (final r in rows.where((r) => r['active'] != '0').take(8)) {
+            log?.call('  ${r['hostName'] ?? ''} ${r['layer1Interface'] ?? ''} ${r['X_TP_LanConnDev'] ?? ''} '
+                '${r['bytesSent'] != null ? 'sent=${r['bytesSent']} received=${r['bytesReceived']} ' : ''}stack=${r['stack']}');
+          }
+        } else if (_likelyTraffic.contains(oid) && rows.isNotEmpty) {
           final sample = rows.first.entries
               .take(25)
               .map((e) => '${e.key}=${e.value.length > 24 ? '${e.value.substring(0, 24)}…' : e.value}');
@@ -524,6 +619,7 @@ class TplinkClient implements RouterSource {
           'stack': _zeroStack,
           'pstack': _zeroStack,
           for (final attr in a.attrs) attr: '',
+          ...a.values,
         },
         'operation': a.exType,
         'oid': a.oid,

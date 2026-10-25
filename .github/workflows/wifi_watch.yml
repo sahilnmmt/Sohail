@@ -7,6 +7,10 @@ on:
     paths: ["wifi_watch/**", ".github/workflows/wifi_watch.yml"]
   workflow_dispatch:
 
+# One build at a time per branch, so two runs never make two signing keys.
+concurrency:
+  group: wifi-watch-${{ github.ref }}
+
 jobs:
   android:
     runs-on: ubuntu-latest

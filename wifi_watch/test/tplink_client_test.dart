@@ -7,7 +7,7 @@ import 'support/fake_tplink_router.dart';
 
 const _hosts = [
   FakeHost('3C:2E:F9:10:22:01', '192.168.0.101', 'V2219', 3, totalRx: 5000, totalTx: 700, currRx: 120, currTx: 30),
-  FakeHost('B8:27:EB:52:9A:04', '192.168.0.104', 'Linksys06204', 0),
+  FakeHost('B8:27:EB:52:9A:04', '192.168.0.104', 'Linksys06204', 0, totalRx: 90000, totalTx: 8000),
   FakeHost('DC:A6:32:66:1D:05', '192.168.0.105', 'Old-Tablet', 1, active: false),
 ];
 
@@ -153,7 +153,7 @@ void main() {
     await router.stop();
   });
 
-  test('EX: usage from Wi-Fi association counters, speed from their change', () async {
+  test('EX: usage from the access point and port counters, speed from their change', () async {
     final router = FakeTplinkRouter(variant: const TpVariant(TpProtocol.ex, TpCipher.cbc), hosts: _hosts);
     await router.start();
     final client = TplinkClient(host: router.address, username: 'admin', password: 'secret');
@@ -161,7 +161,8 @@ void main() {
     expect(first.totalDown, 5000);
     expect(first.totalUp, 700);
     expect(first.downBps, isNull);
-    expect((await client.fetch()).clients[1].totalDown, isNull, reason: 'wired: no Wi-Fi counters');
+    // Wired and alone on its port: the port's counters.
+    expect((await client.fetch()).clients[1].totalDown, 90000);
 
     await Future<void>.delayed(const Duration(milliseconds: 500));
     router.hosts = [
@@ -174,6 +175,26 @@ void main() {
     expect(next.downBps, lessThan(200000));
     await client.close();
     await router.stop();
+  });
+
+  test('EX: turning on traffic statistics makes them the source', () async {
+    final router = FakeTplinkRouter(variant: const TpVariant(TpProtocol.ex, TpCipher.cbc), hosts: _hosts);
+    await router.start();
+    final client = TplinkClient(host: router.address, username: 'admin', password: 'secret');
+    await client.connect();
+    expect(await client.trafficStatsEnabled(), isFalse);
+    await client.setTrafficStats(true);
+    expect(router.statsOn, isTrue);
+    expect(await client.trafficStatsEnabled(), isTrue);
+    // Matched by IP address; the fake adds 1 so the source is visible.
+    expect((await client.fetch()).clients.map((c) => c.totalDown), [5001, 90001]);
+    await client.close();
+    await router.stop();
+  });
+
+  test('ethernetPort', () {
+    expect(TplinkClient.ethernetPort('Device.Ethernet.Interface.3.'), 3);
+    expect(TplinkClient.ethernetPort('Device.WiFi.SSID.1.'), isNull);
   });
 
   test('findToken ignores variable names', () {

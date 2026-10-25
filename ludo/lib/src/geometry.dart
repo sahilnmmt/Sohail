@@ -33,11 +33,14 @@ class BoardGeometry {
     return [for (final (r, c) in rc) Offset(c + 0.5, r + 0.5)];
   }
 
-  static const List<Offset> _yardSlots = [
-    Offset(2, 2),
-    Offset(4, 2),
-    Offset(2, 4),
-    Offset(4, 4),
+  /// The white box inside each yard where tokens wait, and their spots
+  /// (red's yard; the others are rotated).
+  static const Rect yardBox = Rect.fromLTWH(1.5, 1.5, 3, 3);
+  static const List<Offset> yardSlots = [
+    Offset(2.25, 2.25),
+    Offset(3.75, 2.25),
+    Offset(2.25, 3.75),
+    Offset(3.75, 3.75),
   ];
 
   /// Rotates [p] a quarter turn clockwise about the board centre, [times]
@@ -54,7 +57,7 @@ class BoardGeometry {
   }
 
   static Offset _redPosition(int progress, int token) {
-    if (progress == inYard) return _yardSlots[token];
+    if (progress == inYard) return yardSlots[token];
     if (progress <= lastTrackStep) return track[progress];
     if (progress < home) return Offset(progress - 50 + 0.5, 7.5);
     return const Offset(6.55, 7.5);

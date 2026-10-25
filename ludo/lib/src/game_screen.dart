@@ -353,12 +353,11 @@ class _GameScreenState extends State<GameScreen> {
       );
     }
     final panelH = (box.maxHeight * 0.15).clamp(90.0, 170.0);
-    final board = min(
-      box.maxWidth - 2 * gap,
-      box.maxHeight - 2 * panelH - 4 * gap,
-    );
-    Widget row(LudoColor left, Widget middle, LudoColor right) => SizedBox(
+    // The board runs edge to edge; only the panels keep a side margin.
+    final board = min(box.maxWidth, box.maxHeight - 2 * panelH - 4 * gap);
+    Widget row(LudoColor left, Widget middle, LudoColor right) => Container(
       height: panelH,
+      padding: const EdgeInsets.symmetric(horizontal: gap),
       child: Row(
         children: [
           Expanded(child: _panel(left)),
@@ -368,7 +367,7 @@ class _GameScreenState extends State<GameScreen> {
       ),
     );
     return Padding(
-      padding: const EdgeInsets.all(gap),
+      padding: const EdgeInsets.symmetric(vertical: gap),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
@@ -539,7 +538,7 @@ class _GameScreenState extends State<GameScreen> {
         final (color, t, pos) = placed[group[j]];
         final dx = n == 1 ? 0.0 : ((j % cols) - (cols - 1) / 2) * 0.42;
         final dy = n == 1 ? 0.0 : ((j ~/ cols) - (rows - 1) / 2) * 0.42;
-        final tokenSize = cell * 0.82 * scale;
+        final tokenSize = cell * 0.95 * scale;
         final isMoving = _movingToken == (color, t);
         final glowing = color == game.current.color && movable.contains(t);
         final z = isMoving

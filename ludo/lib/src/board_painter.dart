@@ -40,18 +40,21 @@ class BoardPainter extends CustomPainter {
       // Yard.
       canvas.drawRect(r(0, 0, 6, 6), Paint()..color = seat);
       canvas.drawRRect(
-        RRect.fromRectAndRadius(r(1, 1, 4, 4), Radius.circular(cell * 0.4)),
+        RRect.fromRectAndRadius(
+          Rect.fromLTRB(
+            BoardGeometry.yardBox.left * cell,
+            BoardGeometry.yardBox.top * cell,
+            BoardGeometry.yardBox.right * cell,
+            BoardGeometry.yardBox.bottom * cell,
+          ),
+          Radius.circular(cell * 0.4),
+        ),
         Paint()..color = Colors.white,
       );
-      for (final slot in const [
-        Offset(2, 2),
-        Offset(4, 2),
-        Offset(2, 4),
-        Offset(4, 4),
-      ]) {
+      for (final slot in BoardGeometry.yardSlots) {
         canvas.drawCircle(
           slot * cell,
-          cell * 0.6,
+          cell * 0.55,
           Paint()..color = seat.withValues(alpha: 0.3),
         );
       }

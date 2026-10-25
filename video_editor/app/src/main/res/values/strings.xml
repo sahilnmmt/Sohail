@@ -1,0 +1,27 @@
+<resources>
+    <string name="app_name">Video Merger</string>
+    <string name="empty">Tap “Add videos” to pick clips.\nThey are joined in the order shown. Trim or rotate each clip, then merge.</string>
+    <string name="add">Add videos</string>
+    <string name="merge">Merge &amp; save</string>
+    <string name="save_one">Edit &amp; save</string>
+    <string name="cancel">Cancel</string>
+    <string name="play">Play</string>
+    <string name="share">Share</string>
+    <string name="mute">Remove sound</string>
+    <string name="resolution">Output size</string>
+    <string name="total">%1$d clip(s) · total %2$s</string>
+    <string name="clip_title">%1$d. %2$s</string>
+    <string name="exporting">Exporting… %1$d%%</string>
+    <string name="saved">Saved to Movies/Video Merger</string>
+    <string name="failed">Export failed: %1$s</string>
+    <string name="no_app">No app found to open this</string>
+    <string name="trim_title">Trim %1$s</string>
+    <string name="trim_summary">Keep %1$s – %2$s (%3$s)</string>
+    <string name="apply">Apply</string>
+    <string name="reset">Reset</string>
+    <string name="move_up">Move up</string>
+    <string name="move_down">Move down</string>
+    <string name="trim">Trim</string>
+    <string name="rotate">Rotate</string>
+    <string name="remove">Remove</string>
+</resources>

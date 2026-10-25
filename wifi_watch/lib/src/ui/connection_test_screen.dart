@@ -49,6 +49,7 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
     try {
       await client.connect();
       await client.describeDeviceFields();
+      await client.describeHistoryTables();
       final snap = await client.fetch();
       _log('Devices online: ${snap.clients.length}');
       for (final c in snap.clients) {

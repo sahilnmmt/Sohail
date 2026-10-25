@@ -559,21 +559,45 @@ class TplinkClient implements RouterSource {
     }
   }
 
-  static final _trafficName = RegExp(r'STAT|ASSOC|TRAFFIC|FLOW|BANDWIDTH|_BW|SPEED|RATE|COUNT|BYTE|QOS|CLIENT|MONITOR');
-  static final _notTraffic = RegExp(r'LTE|SMS|VPN|USSD|VOIP|VOICE|DSL|USB|PRINT|IPTV|PPP|DDNS|NAT|FIREWALL|ALG');
+  static final _historyName = RegExp(
+      r'HISTORY|URL|DNS|PARENT|HOMECARE|SHIELD|WEB|SITE|DOMAIN|APP|BLOCK|INSIGHT|LOG|ACCESS|FILTER|HTTP|KID|'
+      r'PROFILE|FAMILY|AVIRA|TREND|SECURITY|ANTIVIRUS|ONLINE_TIME|TIME_LIMIT');
+  static final _notHistory = RegExp(r'LTE|SMS|VOIP|VOICE|USSD|_MAX_INST$|^DEV2_(STAT|QOS|HW_QOS|IQOS)');
 
-  Future<List<String>> _trafficTables() async {
+  /// For the connection test: does this router keep any record of the
+  /// sites or apps each device used (parental controls, HomeShield,
+  /// DNS or URL logs)? Logs every table whose name suggests it, with a
+  /// sample entry. Read operations only.
+  Future<void> describeHistoryTables() async {
+    if (variant!.protocol != TpProtocol.ex) return;
+    final all = await _allTables();
+    final pick = (all.where((n) => _historyName.hasMatch(n) && !_notHistory.hasMatch(n)).toList()..sort());
+    log?.call('Looking for browsing history: ${pick.length} tables might hold it');
+    for (final oid in pick.take(80)) {
+      await _describeTable(oid, sample: 3);
+    }
+  }
+
+  Set<String>? _tableNames;
+
+  Future<Set<String>> _allTables() async {
+    if (_tableNames != null) return _tableNames!;
     try {
       final (code, js) = await _send('GET', '$host/js/oid_str.js');
       final all = {for (final m in RegExp(r'DEV2_[A-Z0-9_]+').allMatches(js)) m[0]!};
-      final pick = (all.where((n) => _trafficName.hasMatch(n) && !_notTraffic.hasMatch(n)).toList()..sort());
       log?.call('js/oid_str.js: HTTP $code, ${all.length} tables');
-      final first = [for (final n in _likelyTraffic) if (all.contains(n)) n];
-      return [...first, ...pick.where((n) => !first.contains(n) && !n.endsWith('_MAX_INST'))].take(50).toList();
+      return _tableNames = all;
     } catch (e) {
       log?.call('js/oid_str.js: $e');
-      return [];
+      return const {};
     }
+  }
+
+  /// The tables known to hold traffic on EX firmware. The rest were looked
+  /// at on the XX530v and hold none.
+  Future<List<String>> _trafficTables() async {
+    final all = await _allTables();
+    return [for (final n in _likelyTraffic) if (all.contains(n)) n];
   }
 
   /// Looked at first, with a sample of their values.
@@ -590,7 +614,8 @@ class TplinkClient implements RouterSource {
     'DEV2_ADT_WIFI_CLIENT',
   ];
 
-  Future<void> _describeTable(String oid) async {
+  /// [sample]: also log this many entries' values.
+  Future<void> _describeTable(String oid, {int sample = 0}) async {
     for (final act in [_Act.gl(oid), _Act.get(oid)]) {
       try {
         final rows = (await _query([act]))[0];
@@ -601,11 +626,14 @@ class TplinkClient implements RouterSource {
             log?.call('  ${r['hostName'] ?? ''} ${r['layer1Interface'] ?? ''} ${r['X_TP_LanConnDev'] ?? ''} '
                 '${r['bytesSent'] != null ? 'sent=${r['bytesSent']} received=${r['bytesReceived']} ' : ''}stack=${r['stack']}');
           }
-        } else if (_likelyTraffic.contains(oid) && rows.isNotEmpty) {
-          final sample = rows.first.entries
-              .take(25)
-              .map((e) => '${e.key}=${e.value.length > 24 ? '${e.value.substring(0, 24)}…' : e.value}');
-          log?.call('  first entry: ${sample.join(', ')}');
+        } else {
+          final n = sample > 0 ? sample : (_likelyTraffic.contains(oid) ? 1 : 0);
+          for (final r in rows.take(n)) {
+            final values = r.entries
+                .take(25)
+                .map((e) => '${e.key}=${e.value.length > 40 ? '${e.value.substring(0, 40)}…' : e.value}');
+            log?.call('  entry: ${values.join(', ')}');
+          }
         }
         return;
       } catch (e) {

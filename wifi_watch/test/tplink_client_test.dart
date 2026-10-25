@@ -126,15 +126,19 @@ void main() {
     });
   });
 
-  test('connection test looks for traffic tables and reports the maker', () async {
+  test('connection test looks for traffic and history tables and reports the maker', () async {
     final router = FakeTplinkRouter(variant: const TpVariant(TpProtocol.ex, TpCipher.cbc), hosts: _hosts);
     await router.start();
     final lines = <String>[];
     final client = TplinkClient(host: router.address, username: 'admin', password: 'secret', log: lines.add);
     await client.connect();
     await client.describeDeviceFields();
-    expect(lines, contains('js/oid_str.js: HTTP 200, 4 tables'));
-    expect(lines, contains(startsWith('DEV2_WIFI_ASSOC_STATS:')));
+    await client.describeHistoryTables();
+    expect(lines, contains('js/oid_str.js: HTTP 200, 5 tables'));
+    expect(lines, contains(startsWith('DEV2_STAT_CFG (')));
+    expect(lines, contains('Looking for browsing history: 1 tables might hold it'));
+    expect(lines, contains(startsWith('DEV2_PARENTAL_URL_LOG (gl): 1 entries, fields: url, mac')));
+    expect(lines, contains(startsWith('  entry: url=youtube.com')));
     expect(lines.where((l) => l.contains('LTE_SMS')), hasLength(0));
     expect((await client.fetch()).clients.first.vendor, 'vivo Mobile Communication');
     await client.close();

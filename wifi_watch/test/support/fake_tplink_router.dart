@@ -111,7 +111,7 @@ class FakeTplinkRouter {
                 TokenStyle.cookieOnly => '<script>var token;\n\$.Iencryptor.setHash(username, token);</script>',
               });
       } else if (path == '/js/oid_str.js') {
-        res.write('var DEV2_HOST_ENTRY="DEV2_HOST_ENTRY";\nvar DEV2_DEV_INFO="x";\nvar DEV2_WIFI_ASSOC_STATS="x";\nvar DEV2_LTE_SMS_STAT="x";\n');
+        res.write('var DEV2_HOST_ENTRY="DEV2_HOST_ENTRY";\nvar DEV2_DEV_INFO="x";\nvar DEV2_STAT_CFG="x";\nvar DEV2_PARENTAL_URL_LOG="x";\nvar DEV2_LTE_SMS_LOG="x";\n');
       } else if (path == '/cgi/login' && variant.protocol == TpProtocol.mr) {
         await _mrLogin(req);
       } else if (path == '/cgi_gdpr') {
@@ -304,6 +304,9 @@ class FakeTplinkRouter {
                 'totalBytes': '${h.statBytes}',
                 'currBytes': '1000',
               },
+      ],
+      'DEV2_PARENTAL_URL_LOG' => [
+        {'url': 'youtube.com', 'mac': hosts.first.mac},
       ],
       '/cgi/logout' => null,
       _ => throw StateError('unknown oid $oid'),

@@ -17,6 +17,8 @@ const _testD =
     '7c043a12932e0a6ff3139c17d64faea223d0c57aed5bdcff58cf8f499f8cdb946d41f30451b2b1d279822075928d147810296e36e5fda398721b4c6f818b1f01';
 const testEe = '010001';
 
+enum TokenStyle { varToken, property, cookieOnly }
+
 class FakeHost {
   final String mac, ip, name;
   final int connType;
@@ -31,6 +33,9 @@ class FakeTplinkRouter {
   final String username;
   final String password;
   final String model;
+
+  /// How the start page gives the session token.
+  final TokenStyle tokenStyle;
   List<FakeHost> hosts;
   final int seq = 581063244;
 
@@ -47,6 +52,7 @@ class FakeTplinkRouter {
     this.username = 'admin',
     this.password = 'secret',
     this.model = 'Archer XX530v',
+    this.tokenStyle = TokenStyle.varToken,
     this.hosts = const [],
   });
 
@@ -85,7 +91,14 @@ class FakeTplinkRouter {
         res.write('var ee="$testEe";\nvar nn="$testNn";\nvar seq="$seq";\n\$.ret=0;\n');
       } else if (path == '/' && req.method == 'GET') {
         final sessionOk = _session != null && req.cookies.any((c) => c.name == 'JSESSIONID' && c.value == _session);
-        res.write(sessionOk ? '<script>var token="$_token";</script>' : '<html>login page</html>');
+        res.write(!sessionOk
+            ? '<html>login page</html>'
+            : switch (tokenStyle) {
+                TokenStyle.varToken => '<script>var token="$_token";</script>',
+                TokenStyle.property =>
+                  '<script>var token;\nvar tmpcount = {};\ntmpcount.Token=$_token;\nfunction f(username,token) {}</script>',
+                TokenStyle.cookieOnly => '<script>var token;\n\$.Iencryptor.setHash(username, token);</script>',
+              });
       } else if (path == '/cgi/login' && variant.protocol == TpProtocol.mr) {
         await _mrLogin(req);
       } else if (path == '/cgi_gdpr') {
@@ -153,7 +166,7 @@ class FakeTplinkRouter {
   void _newSession(HttpRequest req) {
     logins++;
     _session = 'S${DateTime.now().microsecondsSinceEpoch}';
-    _token = 'T$logins';
+    _token = 'a3f${logins}c9e0b17d24f68a9c1e3b5d7f02';
     req.response.headers.add(HttpHeaders.setCookieHeader, 'JSESSIONID=$_session; Path=/; HttpOnly');
   }
 
@@ -207,7 +220,7 @@ class FakeTplinkRouter {
     // A data request: needs the session cookie and token.
     final sessionOk = _session != null &&
         req.cookies.any((c) => c.name == 'JSESSIONID' && c.value == _session) &&
-        req.headers.value('TokenID') == _token;
+        (tokenStyle == TokenStyle.cookieOnly || req.headers.value('TokenID') == _token);
     if (!sessionOk) {
       req.response.statusCode = 403;
       return;

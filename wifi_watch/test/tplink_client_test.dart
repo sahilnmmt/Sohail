@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wifi_watch/src/router/router_source.dart';
 import 'package:wifi_watch/src/router/tplink_client.dart';
+import 'package:wifi_watch/src/router/tplink_crypto.dart';
 
 import 'support/fake_tplink_router.dart';
 
@@ -75,6 +76,29 @@ void main() {
       });
     });
   }
+
+  for (final style in TokenStyle.values) {
+    test('finds the session with token style ${style.name}', () async {
+      final router = FakeTplinkRouter(variant: const TpVariant(TpProtocol.ex, TpCipher.cbc), tokenStyle: style, hosts: _hosts);
+      await router.start();
+      final lines = <String>[];
+      final client = TplinkClient(host: router.address, username: 'admin', password: 'secret', log: lines.add);
+      final snap = await client.fetch();
+      expect(snap.clients, hasLength(2));
+      expect(client.name, 'TP-Link Archer XX530v');
+      expect(router.logins, 1);
+      if (style == TokenStyle.cookieOnly) expect(lines, contains('Requests work without a session token'));
+      await client.close();
+      await router.stop();
+    });
+  }
+
+  test('findToken ignores variable names', () {
+    expect(TplinkClient.findToken('var token="abc123";'), 'abc123');
+    expect(TplinkClient.findToken("var token = 'abc123';"), 'abc123');
+    expect(TplinkClient.findToken('tmpcount.Token=0a1b2c3d4e5f;'), '0a1b2c3d4e5f');
+    expect(TplinkClient.findToken('var token;\ntmpcount.Token=token;\nx.token = tokenValue;'), isNull);
+  });
 
   test('an address that is not a TP-Link router says so', () async {
     final router = FakeTplinkRouter(variant: TpVariant.all.first);

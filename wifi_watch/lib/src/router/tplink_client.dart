@@ -207,16 +207,50 @@ class TplinkClient implements RouterSource {
     }
 
     final (code, page) = await _send('GET', _url(''));
-    final token = RegExp(r'var token="([^"]*)";').firstMatch(page)?.group(1);
-    if (code != 200 || token == null || token.isEmpty) {
-      log?.call('Start page: ${describePage(page)}');
-      throw RouterException('Logged in, but the router sent no session token (HTTP $code)');
-    }
-    _token = token;
+    final found = code == 200 ? findToken(page) : null;
     variant = v;
+    if (found == null) log?.call('No session token found. Start page (HTTP $code): ${describePage(page)}');
+    // Check the token with a real request. Some firmware checks only the
+    // session cookie, so also try without one.
+    Object? lastError;
+    for (final token in [?found, '']) {
+      _token = token;
+      try {
+        await _query([_hostsAct()]);
+        lastError = null;
+        if (token.isEmpty) log?.call('Requests work without a session token');
+        break;
+      } catch (e) {
+        lastError = e;
+        if (token.isNotEmpty) log?.call('Requests with the token from the start page fail: $e');
+      }
+    }
+    if (lastError != null) {
+      _token = null;
+      throw RouterException('Logged in, but requests are refused ($lastError)');
+    }
     log?.call('Logged in with $v');
     await _readModel();
   }
+
+  /// The session token in the router's start page. Firmware writes it as
+  /// `var token="..."`, `token = '...'` or `xxx.Token=...`.
+  static String? findToken(String page) {
+    for (final re in [
+      RegExp(r'''var\s+token\s*=\s*["']([^"']+)["']'''),
+      RegExp(r'''\btoken\s*[:=]\s*["']([0-9A-Za-z]{8,})["']''', caseSensitive: false),
+      RegExp(r'''\.token\s*=\s*["']?([0-9A-Za-z]{8,})''', caseSensitive: false),
+    ]) {
+      final t = re.firstMatch(page)?.group(1);
+      // Real tokens are random hex; a variable name has no digits.
+      if (t != null && RegExp(r'\d').hasMatch(t)) return t;
+    }
+    return null;
+  }
+
+  _Act _hostsAct() => variant!.protocol == TpProtocol.ex
+      ? _Act.gl('DEV2_HOST_ENTRY', ['active', 'X_TP_LanConnType', 'physAddress', 'IPAddress', 'hostName'])
+      : _Act.gl('LAN_HOST_ENTRY', ['IPAddress', 'MACAddress', 'hostName', 'X_TP_ConnType', 'active']);
 
   Future<void> _fetchKey(String path) async {
     final (code, body) = await _send('POST', _url(path));
@@ -260,11 +294,7 @@ class TplinkClient implements RouterSource {
 
   Future<RouterSnapshot> _fetchClients() async {
     final ex = variant!.protocol == TpProtocol.ex;
-    final rows = (await _query([
-      ex
-          ? _Act.gl('DEV2_HOST_ENTRY', ['active', 'X_TP_LanConnType', 'physAddress', 'IPAddress', 'hostName'])
-          : _Act.gl('LAN_HOST_ENTRY', ['IPAddress', 'MACAddress', 'hostName', 'X_TP_ConnType', 'active']),
-    ]))[0];
+    final rows = (await _query([_hostsAct()]))[0];
 
     final stats = <String, Map<String, String>>{};
     if (!ex && _statsSupported) {
@@ -410,16 +440,19 @@ class TplinkClient implements RouterSource {
   /// anything after "token" hidden.
   static String describePage(String page) {
     final title = RegExp(r'<title>([^<]*)</title>', caseSensitive: false).firstMatch(page)?.group(1)?.trim();
-    final hints = [
-      for (final m in RegExp(r'[^\n;]*token[^\n;]*', caseSensitive: false).allMatches(page).take(5))
-        m.group(0)!.trim().replaceAllMapped(RegExp(r'''(token\W{0,4})[^\s"']{4,}''', caseSensitive: false), (t) => '${t[1]}***'),
-    ];
+    // Values that look like tokens (long, with a digit) are hidden.
+    String hide(String t) => t.replaceAllMapped(
+        RegExp(r'[0-9A-Za-z]{12,}'), (m) => RegExp(r'\d').hasMatch(m[0]!) ? '<${m[0]!.length} chars>' : m[0]!);
+    final hints = <String>{
+      for (final m in RegExp(r'[^\n;{}]*token[^\n;{}]*', caseSensitive: false).allMatches(page))
+        hide(m[0]!.trim().length > 100 ? m[0]!.trim().substring(0, 100) : m[0]!.trim()),
+    }.take(15).toList();
     final scripts = [
       for (final m in RegExp(r'<script[^>]*src="([^"]+)"', caseSensitive: false).allMatches(page).take(8)) m.group(1)!,
     ];
     return '${page.length} characters, title "${title ?? ''}"'
-        '${hints.isEmpty ? ', no "token" text' : ', token lines: ${hints.join(' | ')}'}'
-        '${scripts.isEmpty ? '' : ', scripts: ${scripts.join(' ')}'}';
+        '${hints.isEmpty ? ', no "token" text' : ', token lines:\n    ${hints.join('\n    ')}'}'
+        '${scripts.isEmpty ? '' : '\n  scripts: ${scripts.join(' ')}'}';
   }
 
   static int? _retCode(String text) => int.tryParse(RegExp(r'\$\.ret=(\d+);').firstMatch(text)?.group(1) ?? '');
@@ -458,7 +491,7 @@ class TplinkClient implements RouterSource {
       req.headers.set(HttpHeaders.acceptHeader, '*/*');
       req.headers.set(HttpHeaders.userAgentHeader, _userAgent);
       req.headers.set(HttpHeaders.refererHeader, '$host/');
-      if (_token != null) req.headers.set('TokenID', _token!);
+      if (_token?.isNotEmpty ?? false) req.headers.set('TokenID', _token!);
       if (_cookies.isNotEmpty) {
         req.headers.set(HttpHeaders.cookieHeader, _cookies.entries.map((e) => '${e.key}=${e.value}').join('; '));
       }

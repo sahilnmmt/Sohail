@@ -17,6 +17,9 @@ void main() {
     expect(guessKind('PS5-123'), DeviceKind.console);
     expect(guessKind(''), DeviceKind.other);
     expect(guessKind('xyz'), DeviceKind.other);
+    expect(guessKind('', 'vivo Mobile Communication'), DeviceKind.phone);
+    expect(guessKind('', 'Espressif Inc.'), DeviceKind.smartHome);
+    expect(guessKind('Living-Room-TV', 'Xiaomi'), DeviceKind.tv);
   });
 
   test('private MAC addresses', () {

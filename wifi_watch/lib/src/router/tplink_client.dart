@@ -279,7 +279,7 @@ class TplinkClient implements RouterSource {
   }
 
   _Act _hostsAct() => variant!.protocol == TpProtocol.ex
-      ? _Act.gl('DEV2_HOST_ENTRY', ['active', 'X_TP_LanConnType', 'physAddress', 'IPAddress', 'hostName'])
+      ? _Act.gl('DEV2_HOST_ENTRY', ['active', 'X_TP_LanConnType', 'physAddress', 'IPAddress', 'hostName', 'X_TP_Vendor'])
       : _Act.gl('LAN_HOST_ENTRY', ['IPAddress', 'MACAddress', 'hostName', 'X_TP_ConnType', 'active']);
 
   Future<void> _fetchKey(String path) async {
@@ -352,6 +352,7 @@ class TplinkClient implements RouterSource {
         mac: mac,
         ip: r['IPAddress'] ?? '',
         hostname: r['hostName'] ?? '',
+        vendor: r['X_TP_Vendor'] ?? '',
         link: ex ? _exLink(type) : _mrLink(type),
         downBps: num('currBytesRx')?.toDouble(),
         upBps: num('currBytesTx')?.toDouble(),
@@ -382,15 +383,43 @@ class TplinkClient implements RouterSource {
 
   /// For the connection test: every field the router keeps per device, so we
   /// can see whether this model reports traffic somewhere else.
+  /// For EX firmware it also reads the router's list of data tables
+  /// (js/oid_str.js) and looks into the ones that may hold traffic. Reads
+  /// only.
   Future<void> describeDeviceFields() async {
     final ex = variant!.protocol == TpProtocol.ex;
-    for (final oid in ex ? ['DEV2_HOST_ENTRY'] : ['LAN_HOST_ENTRY', 'STAT_ENTRY']) {
+    final oids = ex ? ['DEV2_HOST_ENTRY'] : ['LAN_HOST_ENTRY', 'STAT_ENTRY'];
+    if (ex) oids.addAll(await _trafficTables());
+    for (final oid in oids) {
+      await _describeTable(oid);
+    }
+  }
+
+  static final _trafficName = RegExp(r'STAT|ASSOC|TRAFFIC|FLOW|BANDWIDTH|_BW|SPEED|RATE|COUNT|BYTE|QOS|CLIENT|MONITOR');
+  static final _notTraffic = RegExp(r'LTE|SMS|VPN|USSD|VOIP|VOICE|DSL|USB|PRINT|IPTV|PPP|DDNS|NAT|FIREWALL|ALG');
+
+  Future<List<String>> _trafficTables() async {
+    try {
+      final (code, js) = await _send('GET', '$host/js/oid_str.js');
+      final all = {for (final m in RegExp(r'DEV2_[A-Z0-9_]+').allMatches(js)) m[0]!};
+      final pick = (all.where((n) => _trafficName.hasMatch(n) && !_notTraffic.hasMatch(n)).toList()..sort());
+      log?.call('js/oid_str.js: HTTP $code, ${all.length} tables; maybe traffic: ${pick.join(', ')}');
+      return pick.take(30).toList();
+    } catch (e) {
+      log?.call('js/oid_str.js: $e');
+      return [];
+    }
+  }
+
+  Future<void> _describeTable(String oid) async {
+    for (final act in [_Act.gl(oid), _Act.get(oid)]) {
       try {
-        final rows = (await _query([_Act.gl(oid)]))[0];
-        final keys = <String>{for (final r in rows) ...r.keys};
-        log?.call('$oid: ${rows.length} entries, fields: ${keys.join(', ')}');
+        final rows = (await _query([act]))[0];
+        final keys = <String>{for (final r in rows) ...r.keys}..remove('stack');
+        log?.call('$oid (${act.exType}): ${rows.length} entries, fields: ${keys.take(40).join(', ')}');
+        return;
       } catch (e) {
-        log?.call('$oid: $e');
+        if (act.exType == 'go') log?.call('$oid: $e');
       }
     }
   }

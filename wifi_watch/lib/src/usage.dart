@@ -31,6 +31,7 @@ class KnownDevice {
   final String mac;
   String? alias;
   String hostname;
+  String vendor;
   String ip;
   Link link;
   final DateTime firstSeen;
@@ -53,6 +54,7 @@ class KnownDevice {
     required this.mac,
     this.alias,
     required this.hostname,
+    this.vendor = '',
     required this.ip,
     required this.link,
     required this.firstSeen,
@@ -63,7 +65,7 @@ class KnownDevice {
     List<Session>? sessions,
   }) : sessions = sessions ?? [];
 
-  DeviceKind get kind => chosenKind ?? guessKind(hostname);
+  DeviceKind get kind => chosenKind ?? guessKind(hostname, vendor);
 
   /// The name you gave it, else the name it gave the router, else its MAC.
   String get displayName {
@@ -76,6 +78,7 @@ class KnownDevice {
         'mac': mac,
         if (alias != null) 'alias': alias,
         'host': hostname,
+        if (vendor.isNotEmpty) 'vendor': vendor,
         'ip': ip,
         'link': link.name,
         'first': firstSeen.millisecondsSinceEpoch,
@@ -92,6 +95,7 @@ class KnownDevice {
         mac: j['mac'] as String,
         alias: j['alias'] as String?,
         hostname: j['host'] as String? ?? '',
+        vendor: j['vendor'] as String? ?? '',
         ip: j['ip'] as String? ?? '',
         link: Link.values.asNameMap()[j['link']] ?? Link.unknown,
         firstSeen: DateTime.fromMillisecondsSinceEpoch((j['first'] as num).toInt()),
@@ -157,6 +161,7 @@ class UsageData {
         }
       }
       if (c.hostname.isNotEmpty) d.hostname = c.hostname;
+      if (c.vendor.isNotEmpty) d.vendor = c.vendor;
       d
         ..ip = c.ip
         ..link = c.link

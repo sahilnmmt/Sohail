@@ -42,7 +42,7 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
       final snap = await client.fetch();
       _log('Devices online: ${snap.clients.length}');
       for (final c in snap.clients) {
-        _log('  ${c.hostname.isEmpty ? '(no name)' : c.hostname} ${c.ip} ${c.link.name}'
+        _log('  ${c.hostname.isEmpty ? '(no name)' : c.hostname} ${c.ip} ${c.link.name}${c.vendor.isEmpty ? '' : ' (${c.vendor})'}'
             '${c.downBps != null ? ' ↓${formatSpeed(c.downBps!)}' : ''}'
             '${c.totalDown != null ? ' total ${formatBytes(c.totalDown! + (c.totalUp ?? 0))}' : ''}');
       }

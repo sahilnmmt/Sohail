@@ -212,7 +212,7 @@ class _DevicesTabState extends State<_DevicesTab> {
   bool _matches(KnownDevice d) {
     final q = _query.trim().toLowerCase();
     if (q.isEmpty) return true;
-    return [d.displayName, d.hostname, d.ip, d.mac, kindLabel(d.kind)].any((t) => t.toLowerCase().contains(q));
+    return [d.displayName, d.hostname, d.vendor, d.ip, d.mac, kindLabel(d.kind)].any((t) => t.toLowerCase().contains(q));
   }
 
   @override
@@ -272,7 +272,7 @@ class _DevicesTabState extends State<_DevicesTab> {
             child: TextField(
               decoration: const InputDecoration(
                 prefixIcon: Icon(Icons.search),
-                hintText: 'Search name, IP or MAC',
+                hintText: 'Search name, maker, IP or MAC',
                 border: OutlineInputBorder(),
                 isDense: true,
               ),

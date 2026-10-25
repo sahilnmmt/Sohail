@@ -17,6 +17,9 @@ class ClientInfo {
   final String mac;
   final String ip;
   final String hostname;
+
+  /// The maker, if the router knows it, e.g. "vivo Mobile Communication".
+  final String vendor;
   final Link link;
 
   /// Live speed in bytes per second, if the router reports it.
@@ -32,6 +35,7 @@ class ClientInfo {
     required this.mac,
     required this.ip,
     required this.hostname,
+    this.vendor = '',
     required this.link,
     this.downBps,
     this.upBps,

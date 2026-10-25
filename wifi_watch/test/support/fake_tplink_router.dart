@@ -99,6 +99,8 @@ class FakeTplinkRouter {
                   '<script>var token;\nvar tmpcount = {};\ntmpcount.Token=$_token;\nfunction f(username,token) {}</script>',
                 TokenStyle.cookieOnly => '<script>var token;\n\$.Iencryptor.setHash(username, token);</script>',
               });
+      } else if (path == '/js/oid_str.js') {
+        res.write('var DEV2_HOST_ENTRY="DEV2_HOST_ENTRY";\nvar DEV2_DEV_INFO="x";\nvar DEV2_WIFI_ASSOC_STATS="x";\nvar DEV2_LTE_SMS_STAT="x";\n');
       } else if (path == '/cgi/login' && variant.protocol == TpProtocol.mr) {
         await _mrLogin(req);
       } else if (path == '/cgi_gdpr') {
@@ -242,6 +244,7 @@ class FakeTplinkRouter {
               'physAddress': h.mac.toLowerCase(),
               'IPAddress': h.ip,
               'hostName': h.name,
+              'X_TP_Vendor': 'vivo Mobile Communication',
               'stack': '1,0,0,0,0,0',
             },
         ],

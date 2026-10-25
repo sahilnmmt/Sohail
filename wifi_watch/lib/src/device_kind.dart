@@ -33,11 +33,14 @@ final _patterns = <(DeviceKind, RegExp)>[
       RegExp(r'iphone|android|galaxy|\bsm-|redmi|poco|xiaomi|vivo|oppo|realme|oneplus|pixel|moto|nokia|huawei|honor|infinix|tecno|iqoo|nothing|^v\d{4}$|^cph\d{4}$|^rmx\d{4}$')),
 ];
 
-DeviceKind guessKind(String hostname) {
-  final h = hostname.trim().toLowerCase();
-  if (h.isEmpty) return DeviceKind.other;
-  for (final (kind, re) in _patterns) {
-    if (re.hasMatch(h)) return kind;
+/// From the host name, else from the maker the router reports.
+DeviceKind guessKind(String hostname, [String vendor = '']) {
+  for (final text in [hostname, vendor]) {
+    final h = text.trim().toLowerCase();
+    if (h.isEmpty) continue;
+    for (final (kind, re) in _patterns) {
+      if (re.hasMatch(h)) return kind;
+    }
   }
   return DeviceKind.other;
 }

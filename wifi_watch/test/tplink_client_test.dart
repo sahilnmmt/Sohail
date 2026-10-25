@@ -130,6 +130,21 @@ void main() {
     });
   });
 
+  test('connection test looks for traffic tables and reports the maker', () async {
+    final router = FakeTplinkRouter(variant: const TpVariant(TpProtocol.ex, TpCipher.cbc), hosts: _hosts);
+    await router.start();
+    final lines = <String>[];
+    final client = TplinkClient(host: router.address, username: 'admin', password: 'secret', log: lines.add);
+    await client.connect();
+    await client.describeDeviceFields();
+    expect(lines, contains(startsWith('js/oid_str.js: HTTP 200, 4 tables; maybe traffic: DEV2_WIFI_ASSOC_STATS')));
+    expect(lines, contains(startsWith('DEV2_WIFI_ASSOC_STATS:')));
+    expect(lines.where((l) => l.contains('LTE_SMS')), hasLength(0));
+    expect((await client.fetch()).clients.first.vendor, 'vivo Mobile Communication');
+    await client.close();
+    await router.stop();
+  });
+
   test('findToken ignores variable names', () {
     expect(TplinkClient.findToken('var token="abc123";'), 'abc123');
     expect(TplinkClient.findToken("var token = 'abc123';"), 'abc123');

@@ -191,6 +191,7 @@ class DeviceScreen extends StatelessWidget {
               const SizedBox(height: 24),
               Text('Details', style: t.titleMedium),
               _Row('Name on the network', d.hostname.isEmpty ? '(none)' : d.hostname),
+              if (d.vendor.isNotEmpty) _Row('Maker', d.vendor),
               _Row('IP address', d.ip),
               _Row('MAC address', isPrivateMac(d.mac) ? '${d.mac}\n(private address: the device made it up for this network)' : d.mac),
               _Row('Connection', linkLabel(d.link)),

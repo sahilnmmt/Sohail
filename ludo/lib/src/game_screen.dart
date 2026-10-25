@@ -505,7 +505,9 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Widget _board(double size) {
-    final cell = size / BoardGeometry.cells;
+    // A track square's length along the direction of travel: its shortest
+    // side, so tokens are sized from it.
+    final cell = size * BoardGeometry.along / BoardGeometry.cells;
     final movable = game.current.isComputer || _busy
         ? const <int>[]
         : game.movableTokens();
@@ -538,7 +540,7 @@ class _GameScreenState extends State<GameScreen> {
         final (color, t, pos) = placed[group[j]];
         final dx = n == 1 ? 0.0 : ((j % cols) - (cols - 1) / 2) * 0.42;
         final dy = n == 1 ? 0.0 : ((j ~/ cols) - (rows - 1) / 2) * 0.42;
-        final tokenSize = cell * 0.95 * scale;
+        final tokenSize = cell * 1.1 * scale;
         final isMoving = _movingToken == (color, t);
         final glowing = color == game.current.color && movable.contains(t);
         final z = isMoving
@@ -549,8 +551,14 @@ class _GameScreenState extends State<GameScreen> {
             key: ValueKey('token-${color.name}-$t'),
             duration: isMoving ? _stepTime : const Duration(milliseconds: 350),
             curve: Curves.easeOut,
-            left: (pos.dx + dx) * cell - tokenSize / 2,
-            top: (pos.dy + dy) * cell - tokenSize / 2,
+            left:
+                BoardGeometry.toBoard(pos.dx) * size +
+                dx * cell -
+                tokenSize / 2,
+            top:
+                BoardGeometry.toBoard(pos.dy) * size +
+                dy * cell -
+                tokenSize / 2,
             width: tokenSize,
             height: tokenSize,
             child: GestureDetector(

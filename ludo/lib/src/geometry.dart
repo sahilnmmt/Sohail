@@ -5,11 +5,38 @@ import 'engine.dart';
 /// Board layout on a 15x15 grid. Positions are in cell units with (0, 0) at
 /// the top-left corner; a cell's centre is at (col + 0.5, row + 0.5).
 ///
+/// On screen the grid is stretched unevenly so the yards are small and the
+/// track columns wide: see [toBoard].
+///
 /// Everything is laid out for red (top-left yard, left arm) and rotated a
 /// quarter turn clockwise per seat for green, yellow and blue.
 class BoardGeometry {
   static const int cells = 15;
   static const Offset centre = Offset(7.5, 7.5);
+
+  /// How much of the 15-unit board width a 6-square yard takes on screen.
+  /// Track squares are [along] long in the direction of travel and [across]
+  /// wide, so the columns are twice as wide as on an even grid's yards.
+  static const double yardSpan = 5.0;
+  static const double along = yardSpan / 6;
+  static const double across = (cells - 2 * yardSpan) / 3;
+
+  /// Maps a grid coordinate (0..15) to a fraction (0..1) of the board's size
+  /// on screen. The same map on both axes, symmetric about the centre, so
+  /// it keeps the board's quarter-turn symmetry.
+  static double toBoard(double u) {
+    final double v;
+    if (u <= 6) {
+      v = u * along;
+    } else if (u <= 9) {
+      v = yardSpan + (u - 6) * across;
+    } else {
+      v = yardSpan + 3 * across + (u - 9) * along;
+    }
+    return v / cells;
+  }
+
+  static Offset toBoardOffset(Offset p) => Offset(toBoard(p.dx), toBoard(p.dy));
 
   /// The shared track as seen by red: index 0 is red's start square.
   static final List<Offset> track = _buildTrack();

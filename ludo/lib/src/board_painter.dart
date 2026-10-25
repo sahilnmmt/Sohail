@@ -19,7 +19,8 @@ class BoardPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final cell = size.width / BoardGeometry.cells;
+    // A square of the even grid, as drawn inside the yards.
+    final cell = size.width * BoardGeometry.along / BoardGeometry.cells;
     canvas.drawRect(Offset.zero & size, Paint()..color = Colors.white);
     final line = Paint()
       ..color = const Color(0xFF9E9E9E)
@@ -27,8 +28,11 @@ class BoardPainter extends CustomPainter {
       ..strokeWidth = max(1, cell / 30);
     final starPaint = Paint()..color = const Color(0xFFBDBDBD);
 
+    Offset at(double col, double row) =>
+        BoardGeometry.toBoardOffset(Offset(col, row))
+            .scale(size.width, size.height);
     Rect r(double col, double row, double w, double h) =>
-        Rect.fromLTWH(col * cell, row * cell, w * cell, h * cell);
+        Rect.fromPoints(at(col, row), at(col + w, row + h));
 
     for (final color in LudoColor.values) {
       final seat = seatColors[color]!;
@@ -41,11 +45,9 @@ class BoardPainter extends CustomPainter {
       canvas.drawRect(r(0, 0, 6, 6), Paint()..color = seat);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromLTRB(
-            BoardGeometry.yardBox.left * cell,
-            BoardGeometry.yardBox.top * cell,
-            BoardGeometry.yardBox.right * cell,
-            BoardGeometry.yardBox.bottom * cell,
+          Rect.fromPoints(
+            at(BoardGeometry.yardBox.left, BoardGeometry.yardBox.top),
+            at(BoardGeometry.yardBox.right, BoardGeometry.yardBox.bottom),
           ),
           Radius.circular(cell * 0.4),
         ),
@@ -53,7 +55,7 @@ class BoardPainter extends CustomPainter {
       );
       for (final slot in BoardGeometry.yardSlots) {
         canvas.drawCircle(
-          slot * cell,
+          at(slot.dx, slot.dy),
           cell * 0.55,
           Paint()..color = seat.withValues(alpha: 0.3),
         );
@@ -75,9 +77,9 @@ class BoardPainter extends CustomPainter {
       // Centre triangle.
       canvas.drawPath(
         Path()
-          ..moveTo(6 * cell, 6 * cell)
-          ..lineTo(7.5 * cell, 7.5 * cell)
-          ..lineTo(6 * cell, 9 * cell)
+          ..moveTo(at(6, 6).dx, at(6, 6).dy)
+          ..lineTo(at(7.5, 7.5).dx, at(7.5, 7.5).dy)
+          ..lineTo(at(6, 9).dx, at(6, 9).dy)
           ..close(),
         Paint()..color = seat,
       );
@@ -89,7 +91,7 @@ class BoardPainter extends CustomPainter {
 
   static void _drawStar(Canvas canvas, Rect rect, Paint paint) {
     final c = rect.center;
-    final outer = rect.width * 0.38;
+    final outer = rect.shortestSide * 0.42;
     final inner = outer * 0.45;
     final path = Path();
     for (var i = 0; i < 10; i++) {
@@ -104,7 +106,7 @@ class BoardPainter extends CustomPainter {
   /// A small arrow pointing into the home column.
   static void _drawArrow(Canvas canvas, Rect rect, Color color) {
     final c = rect.center;
-    final s = rect.width * 0.28;
+    final s = rect.shortestSide * 0.3;
     canvas.drawPath(
       Path()
         ..moveTo(c.dx + s, c.dy)

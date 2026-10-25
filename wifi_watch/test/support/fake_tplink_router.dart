@@ -111,7 +111,7 @@ class FakeTplinkRouter {
                 TokenStyle.cookieOnly => '<script>var token;\n\$.Iencryptor.setHash(username, token);</script>',
               });
       } else if (path == '/js/oid_str.js') {
-        res.write('var DEV2_HOST_ENTRY="DEV2_HOST_ENTRY";\nvar DEV2_DEV_INFO="x";\nvar DEV2_STAT_CFG="x";\nvar DEV2_PARENTAL_URL_LOG="x";\nvar DEV2_LTE_SMS_LOG="x";\n');
+        res.write('var DEV2_HOST_ENTRY="DEV2_HOST_ENTRY";\nvar DEV2_DEV_INFO="x";\nvar DEV2_STAT_CFG="x";\nvar DEV2_PARENTAL_URL_LOG="x";\nvar DEV2_PC_VISITHISTORY="x";\nvar DEV2_WIFI_SECURITY="x";\nvar DEV2_LTE_SMS_LOG="x";\n');
       } else if (path == '/cgi/login' && variant.protocol == TpProtocol.mr) {
         await _mrLogin(req);
       } else if (path == '/cgi_gdpr') {
@@ -307,6 +307,21 @@ class FakeTplinkRouter {
       ],
       'DEV2_PARENTAL_URL_LOG' => [
         {'url': 'youtube.com', 'mac': hosts.first.mac},
+      ],
+      // Like the XX530v: a history per parental-control profile; entries
+      // are read with their profile's stack.
+      'DEV2_PC_VISITHISTORY' => [
+        {'entryNumberOfEntries': '0', 'stack': '1,0,0,0,0,0'},
+        {'entryNumberOfEntries': '2', 'stack': '2,0,0,0,0,0'},
+      ],
+      'DEV2_PC_VISITHISTORY_ENTRY' => (j['data'] as Map)['stack'] == '2,0,0,0,0,0'
+          ? [
+              {'url': 'www.youtube.com', 'time': '1792900000', 'stack': '2,1,0,0,0,0'},
+              {'url': 'instagram.com', 'time': '1792900060', 'stack': '2,2,0,0,0,0'},
+            ]
+          : throw StateError('history entries need a profile stack'),
+      'DEV2_WIFI_SECURITY' => [
+        {'modeEnabled': 'WPA2-Personal', 'keyPassphrase': 'secret-wifi', 'preSharedKey': 'abcdef'},
       ],
       '/cgi/logout' => null,
       _ => throw StateError('unknown oid $oid'),

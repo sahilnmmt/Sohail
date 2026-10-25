@@ -134,9 +134,13 @@ void main() {
     await client.connect();
     await client.describeDeviceFields();
     await client.describeHistoryTables();
-    expect(lines, contains('js/oid_str.js: HTTP 200, 5 tables'));
+    expect(lines, contains('js/oid_str.js: HTTP 200, 7 tables'));
     expect(lines, contains(startsWith('DEV2_STAT_CFG (')));
-    expect(lines, contains('Looking for browsing history: 1 tables might hold it'));
+    expect(lines, contains('Looking for browsing history: 2 tables might hold it'));
+    expect(lines, contains('Visit history entries: 2'));
+    expect(lines, contains(startsWith('  visit: url=www.youtube.com')));
+    // Tables with passwords are never read for the log.
+    expect(lines.where((l) => l.contains('SECURITY') || l.contains('secret-wifi')), isEmpty);
     expect(lines, contains(startsWith('DEV2_PARENTAL_URL_LOG (gl): 1 entries, fields: url, mac')));
     expect(lines, contains(startsWith('  entry: url=youtube.com')));
     expect(lines.where((l) => l.contains('LTE_SMS')), hasLength(0));
@@ -198,6 +202,12 @@ void main() {
     expect((await client.fetch()).clients.map((c) => c.totalDown), [5000, 90000, 168774]);
     await client.close();
     await router.stop();
+  });
+
+  test('describeEntry never shows secrets', () {
+    final text = TplinkClient.describeEntry(
+        {'modeEnabled': 'WPA2', 'keyPassphrase': 'hunter22', 'preSharedKey': 'ab12', 'password': 'x', 'radiusSecret': ''});
+    expect(text, 'modeEnabled=WPA2, keyPassphrase=<hidden>, preSharedKey=<hidden>, password=<hidden>, radiusSecret=');
   });
 
   test('ipFromStat', () {

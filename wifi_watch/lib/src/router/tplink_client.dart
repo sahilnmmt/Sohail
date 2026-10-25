@@ -61,9 +61,14 @@ class _Act {
 
   /// Values to set (EX firmware only).
   final Map<String, String> values;
-  const _Act(this.oid, this.mrType, this.exType, [this.attrs = const [], this.values = const {}]);
 
-  static _Act gl(String oid, [List<String> attrs = const []]) => _Act(oid, '5', 'gl', attrs);
+  /// Which instance: for a table inside another, the parent's stack.
+  final String stack;
+  const _Act(this.oid, this.mrType, this.exType,
+      [this.attrs = const [], this.values = const {}, this.stack = TplinkClient._zeroStack]);
+
+  static _Act gl(String oid, [List<String> attrs = const [], String stack = TplinkClient._zeroStack]) =>
+      _Act(oid, '5', 'gl', attrs, const {}, stack);
   static _Act get(String oid, [List<String> attrs = const []]) => _Act(oid, '1', 'go', attrs);
 }
 
@@ -560,9 +565,11 @@ class TplinkClient implements RouterSource {
   }
 
   static final _historyName = RegExp(
-      r'HISTORY|URL|DNS|PARENT|HOMECARE|SHIELD|WEB|SITE|DOMAIN|APP|BLOCK|INSIGHT|LOG|ACCESS|FILTER|HTTP|KID|'
-      r'PROFILE|FAMILY|AVIRA|TREND|SECURITY|ANTIVIRUS|ONLINE_TIME|TIME_LIMIT');
-  static final _notHistory = RegExp(r'LTE|SMS|VOIP|VOICE|USSD|_MAX_INST$|^DEV2_(STAT|QOS|HW_QOS|IQOS)');
+      r'HISTORY|URL|PARENT|HOMECARE|SHIELD|BLOCK|INSIGHT|FILTER|KID|PC_PROFILE|FAMILY|AVIRA|TREND|ANTIVIRUS|'
+      r'ONLINE_TIME|TIME_LIMIT');
+  // Never look into tables that hold passwords or keys.
+  static final _notHistory =
+      RegExp(r'LTE|SMS|VOIP|VOICE|USSD|_MAX_INST$|^DEV2_(STAT|QOS|HW_QOS|IQOS)|SECURITY|USER|PASS|CERT|AUTH|DDNS|DNS_CFG');
 
   /// For the connection test: does this router keep any record of the
   /// sites or apps each device used (parental controls, HomeShield,
@@ -576,6 +583,33 @@ class TplinkClient implements RouterSource {
     for (final oid in pick.take(80)) {
       await _describeTable(oid, sample: 3);
     }
+    final visits = await visitHistory();
+    log?.call('Visit history entries: ${visits.length}');
+    for (final v in visits.take(10)) {
+      log?.call('  visit: ${describeEntry(v)}');
+    }
+  }
+
+  /// Sites visited by devices in the router's parental-control profiles.
+  /// The router keeps one history per profile (DEV2_PC_VISITHISTORY) and
+  /// its entries one level down, read with the profile's stack. Devices in
+  /// no profile have no history. Each entry is returned as the router gives
+  /// it, with `profile` added.
+  Future<List<Map<String, String>>> visitHistory() async {
+    if (variant?.protocol != TpProtocol.ex) return const [];
+    final out = <Map<String, String>>[];
+    try {
+      for (final h in (await _query([_Act.gl('DEV2_PC_VISITHISTORY')]))[0]) {
+        if ((int.tryParse(h['entryNumberOfEntries'] ?? '') ?? 0) == 0) continue;
+        final stack = h['stack'] ?? _zeroStack;
+        for (final e in (await _query([_Act.gl('DEV2_PC_VISITHISTORY_ENTRY', const [], stack)]))[0]) {
+          out.add({...e, 'profile': stack.split(',').first});
+        }
+      }
+    } catch (e) {
+      log?.call('Visit history: $e');
+    }
+    return out;
   }
 
   Set<String>? _tableNames;
@@ -614,6 +648,16 @@ class TplinkClient implements RouterSource {
     'DEV2_ADT_WIFI_CLIENT',
   ];
 
+  static final _secretField = RegExp(r'pass|psk|key|secret|token|auth|cert|serial|pin', caseSensitive: false);
+
+  /// One table entry for the log: secrets (passwords, keys...) are never
+  /// shown, and long values are cut.
+  static String describeEntry(Map<String, String> r) => r.entries.take(25).map((e) {
+        final v = e.value;
+        if (v.isNotEmpty && _secretField.hasMatch(e.key)) return '${e.key}=<hidden>';
+        return '${e.key}=${v.length > 40 ? '${v.substring(0, 40)}…' : v}';
+      }).join(', ');
+
   /// [sample]: also log this many entries' values.
   Future<void> _describeTable(String oid, {int sample = 0}) async {
     for (final act in [_Act.gl(oid), _Act.get(oid)]) {
@@ -629,10 +673,7 @@ class TplinkClient implements RouterSource {
         } else {
           final n = sample > 0 ? sample : (_likelyTraffic.contains(oid) ? 1 : 0);
           for (final r in rows.take(n)) {
-            final values = r.entries
-                .take(25)
-                .map((e) => '${e.key}=${e.value.length > 40 ? '${e.value.substring(0, 40)}…' : e.value}');
-            log?.call('  entry: ${values.join(', ')}');
+            log?.call('  entry: ${describeEntry(r)}');
           }
         }
         return;
@@ -652,7 +693,7 @@ class TplinkClient implements RouterSource {
     for (final a in acts) {
       final reply = await _encryptedPost('$host/cgi_gdpr?9', jsonEncode({
         'data': {
-          'stack': _zeroStack,
+          'stack': a.stack,
           'pstack': _zeroStack,
           for (final attr in a.attrs) attr: '',
           ...a.values,
@@ -669,7 +710,7 @@ class TplinkClient implements RouterSource {
     final b = StringBuffer(acts.map((a) => a.mrType).join('&'))..write('\r\n');
     for (var i = 0; i < acts.length; i++) {
       final a = acts[i];
-      b.write('[${a.oid}#$_zeroStack#$_zeroStack]$i,${a.attrs.length}\r\n${a.attrs.join('\r\n')}\r\n');
+      b.write('[${a.oid}#${a.stack}#$_zeroStack]$i,${a.attrs.length}\r\n${a.attrs.join('\r\n')}\r\n');
     }
     return b.toString();
   }

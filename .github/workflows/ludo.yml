@@ -1,0 +1,65 @@
+name: ludo
+
+on:
+  push:
+    paths: ["ludo/**", ".github/workflows/ludo.yml"]
+  pull_request:
+    paths: ["ludo/**", ".github/workflows/ludo.yml"]
+  workflow_dispatch:
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to update the "ludo-latest" pre-release
+    defaults:
+      run:
+        working-directory: ludo
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.7
+          channel: stable
+          cache: true
+
+      - name: Get packages and analyze
+        run: |
+          flutter pub get
+          flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ludo-apk
+          path: ludo/build/app/outputs/flutter-apk/app-release.apk
+
+      # One stable link to tap on a phone: the newest APK from a push, as a
+      # pre-release. Not for pull requests.
+      - name: Publish the "ludo-latest" pre-release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk "$RUNNER_TEMP/ludo.apk"
+          git tag -f ludo-latest "$GITHUB_SHA"
+          git push -f origin refs/tags/ludo-latest
+          notes="Latest Ludo build from \`$GITHUB_REF_NAME\` ($GITHUB_SHA). Download ludo.apk on your Android phone and open it to install."
+          if gh release view ludo-latest > /dev/null 2>&1; then
+            gh release edit ludo-latest --prerelease --notes "$notes"
+          else
+            gh release create ludo-latest --prerelease --title "Ludo (latest build)" --notes "$notes"
+          fi
+          gh release upload ludo-latest "$RUNNER_TEMP/ludo.apk" --clobber

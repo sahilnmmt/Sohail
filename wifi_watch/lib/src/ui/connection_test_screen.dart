@@ -70,6 +70,10 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
       _ok = true;
     } catch (e) {
       _log('FAILED: $e');
+      if (e is RouterException && !e.wrongPassword) {
+        _log('This Linksys has no Smart Wi-Fi (JNAP) interface. About its web page:');
+        await client.describeWebPage();
+      }
       if (e is SocketException || e is TimeoutException) {
         _log('Could not reach ${widget.host}. A Linksys in router mode answers only on its own network: '
             'connect the phone to its Wi-Fi, or use its address as the main router sees it.');

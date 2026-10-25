@@ -76,6 +76,27 @@ class LinksysClient implements RouterSource {
     return (json['output'] as Map?)?.cast<String, Object?>() ?? const {};
   }
 
+  /// For the connection test, when JNAP is missing: what the web page at
+  /// the address says about the router (server, login realm, title), to
+  /// tell which kind of Linksys it is.
+  Future<void> describeWebPage() async {
+    try {
+      final req = await _http.getUrl(Uri.parse('$host/')).timeout(timeout);
+      final res = await req.close().timeout(timeout);
+      final page = await res.transform(const Utf8Decoder(allowMalformed: true)).join().timeout(timeout);
+      final title = RegExp(r'<title>([^<]*)</title>', caseSensitive: false).firstMatch(page)?.group(1)?.trim();
+      log?.call('Web page: HTTP ${res.statusCode}, server "${res.headers.value('server') ?? ''}", '
+          'login "${res.headers.value('www-authenticate') ?? ''}", title "${title ?? ''}", ${page.length} characters');
+      final scripts = [
+        for (final m in RegExp(r'''(?:src|href|action)=["']([^"']+)["']''', caseSensitive: false).allMatches(page).take(12))
+          m.group(1)!,
+      ];
+      if (scripts.isNotEmpty) log?.call('  links: ${scripts.join(' ')}');
+    } catch (e) {
+      log?.call('Web page: $e');
+    }
+  }
+
   /// Logs in by asking for the model, which needs the password.
   Future<void> connect() async {
     final info = await call('core/GetDeviceInfo');

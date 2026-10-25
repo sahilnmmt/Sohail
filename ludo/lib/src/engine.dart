@@ -19,6 +19,18 @@ class Player {
   String get name => isComputer ? '${color.label} (CPU)' : color.label;
 }
 
+/// Two players sit in opposite corners, facing each other: if the two
+/// chosen colours are side by side, the second player takes the colour
+/// opposite the first. Three or four players keep their colours.
+List<Player> seatPlayers(List<Player> players) {
+  if (players.length != 2) return players;
+  final [a, b] = players;
+  if ((b.color.index - a.color.index).isEven) return players;
+  final opposite = LudoColor.values[(a.color.index + 2) % 4];
+  return [a, Player(opposite, isComputer: b.isComputer)]
+    ..sort((x, y) => x.color.index.compareTo(y.color.index));
+}
+
 /// A token's progress along its own route:
 /// [inYard], then 0..50 on the shared track starting at the player's start
 /// square, then 51..55 up the player's home column, then [home].

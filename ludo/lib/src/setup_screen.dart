@@ -20,11 +20,13 @@ class _SetupScreenState extends State<SetupScreen> {
     for (final c in LudoColor.values) c: Seat.human,
   };
 
-  List<Player> get _players => [
+  List<Player> get _chosen => [
     for (final c in LudoColor.values)
       if (_seats[c] != Seat.off)
         Player(c, isComputer: _seats[c] == Seat.computer),
   ];
+
+  List<Player> get _players => seatPlayers(_chosen);
 
   void _start() {
     Navigator.of(context).push(
@@ -35,6 +37,12 @@ class _SetupScreenState extends State<SetupScreen> {
   @override
   Widget build(BuildContext context) {
     final count = _players.length;
+    final moved = _chosen
+        .where((p) => !_players.any((q) => q.color == p.color))
+        .firstOrNull;
+    final movedTo = _players
+        .where((p) => !_chosen.any((q) => q.color == p.color))
+        .firstOrNull;
     return Scaffold(
       body: DecoratedBox(
         decoration: const BoxDecoration(
@@ -61,6 +69,17 @@ class _SetupScreenState extends State<SetupScreen> {
                     ),
                     const SizedBox(height: 24),
                     for (final c in LudoColor.values) _seatRow(c),
+                    if (moved != null && movedTo != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          '2 players sit in opposite corners: '
+                          '${moved.color.label} plays as ${movedTo.color.label}.',
+                          key: const Key('seat-note'),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                      ),
                     const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,

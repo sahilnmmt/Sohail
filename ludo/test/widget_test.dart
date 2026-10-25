@@ -21,6 +21,27 @@ void main() {
       await tester.pump();
     }
     expect(find.text('Pick at least 2 players'), findsOneWidget);
+    expect(find.byKey(const Key('seat-note')), findsNothing);
+
+    // Red and blue are side by side, so blue moves to the opposite corner.
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const Key('seat-red')),
+        matching: find.byIcon(Icons.person),
+      ),
+    );
+    await tester.pump();
+    expect(
+      find.text('2 players sit in opposite corners: Blue plays as Yellow.'),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const Key('seat-red')),
+        matching: find.byIcon(Icons.block),
+      ),
+    );
+    await tester.pump();
     final start = tester.widget<ButtonStyleButton>(
       find.ancestor(
         of: find.text('Pick at least 2 players'),

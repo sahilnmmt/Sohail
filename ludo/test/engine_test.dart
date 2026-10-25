@@ -143,6 +143,45 @@ void main() {
     });
   });
 
+  group('seating', () {
+    List<LudoColor> colors(List<Player> ps) => [for (final p in ps) p.color];
+
+    test('two players side by side move to opposite corners', () {
+      final seated = seatPlayers(const [
+        Player(LudoColor.red),
+        Player(LudoColor.green, isComputer: true),
+      ]);
+      expect(colors(seated), [LudoColor.red, LudoColor.yellow]);
+      expect(seated[1].isComputer, isTrue);
+      expect(
+        colors(
+          seatPlayers(const [
+            Player(LudoColor.green),
+            Player(LudoColor.yellow),
+          ]),
+        ),
+        [LudoColor.green, LudoColor.blue],
+      );
+      expect(
+        colors(
+          seatPlayers(const [Player(LudoColor.red), Player(LudoColor.blue)]),
+        ),
+        [LudoColor.red, LudoColor.yellow],
+      );
+    });
+
+    test('opposite players and bigger games keep their colours', () {
+      const diagonal = [Player(LudoColor.green), Player(LudoColor.blue)];
+      expect(colors(seatPlayers(diagonal)), colors(diagonal));
+      const three = [
+        Player(LudoColor.red),
+        Player(LudoColor.green),
+        Player(LudoColor.yellow),
+      ];
+      expect(colors(seatPlayers(three)), colors(three));
+    });
+  });
+
   group('board geometry', () {
     test('the track is 52 neighbouring, distinct cells', () {
       final t = BoardGeometry.track;

@@ -22,7 +22,9 @@
     <string name="sound_pick_title">Take the sound from</string>
     <string name="sound_from_video">A video</string>
     <string name="sound_from_audio">An audio file (MP3, M4A, WAV…)</string>
-    <string name="resolution">Output size</string>
+    <string name="resolution">Output size (smaller clips are scaled up)</string>
+    <string name="res_1080">1080p Full HD</string>
+    <string name="res_1440">1440p 2K</string>
     <string name="total">%1$d clip(s) · total %2$s</string>
     <string name="clip_title">%1$d. %2$s</string>
     <string name="exporting">Exporting… %1$d%%</string>

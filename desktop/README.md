@@ -5,7 +5,7 @@ command line for automation.
 
 - **Merge** any number of videos, in the order you choose (local files or direct links).
 - **Trim** and **rotate** each clip.
-- **Output size:** Original, 1080p, 720p or 480p, and frames per second. The first clip sets landscape or portrait; other shapes get black bars.
+- **Output size:** 1080p (Full HD) or 1440p (2K), and frames per second. Smaller clips are scaled up, so output is never below 1080p. The first clip sets landscape or portrait; other shapes get black bars.
 - **Sound from another file:** take the sound from another video or an audio file (MP3, M4A, WAV…), trim it, repeat it, set its volume, and replace or mix with the clips' own sound.
 - **Subtitles from speech:** Whisper listens to the finished video's sound and writes captions, offline. They are drawn into the video and/or saved as an `.srt` file. You can also use your own `.srt`.
 - **Free stock videos:** search and download from [Pexels](https://www.pexels.com/api/) (free API key).
@@ -26,7 +26,7 @@ Open *Command Prompt* or *PowerShell* in the VideoMerger folder (or add it to `P
 ```bat
 :: merge clips, take the sound from a song, add subtitles from speech
 VideoMerger merge intro.mp4 "C:\clips\talk.mp4" https://example.com/b-roll.mp4 ^
-    -o final.mp4 -r 1080p --sound song.mp3 --volume 0.3 --subtitles --model small
+    -o final.mp4 -r 1440p --sound song.mp3 --volume 0.3 --subtitles --model small
 
 :: everything in a recipe file (see below)
 VideoMerger run recipe.json
@@ -50,7 +50,7 @@ Make one with *File → Save recipe…* in the window, with `merge … --save-re
 ```json
 {
   "output": "my-video.mp4",
-  "resolution": "720p",
+  "resolution": "1080p",
   "fps": 30,
   "mute_clips": false,
   "clips": [
@@ -66,7 +66,7 @@ Make one with *File → Save recipe…* in the window, with `merge … --save-re
 | Field | Meaning |
 |---|---|
 | `clips` | In order. `path` is a file (relative to the recipe) or a direct `http(s)` link to a video file. `start`/`end` in seconds or `m:ss`. `rotate`: 0, 90, 180, 270 clockwise. |
-| `resolution` | `original`, `1080p`, `720p`, `480p` |
+| `resolution` | `1080p` (default) or `1440p` (also written `2k`) |
 | `mute_clips` | `true` drops the clips' own sound |
 | `sound` | Optional. Sound from another video or audio file; `loop` repeats it if shorter than the video; `volume` 1 = unchanged. It always stops when the video ends. |
 | `subtitles.mode` | `off`, `speech` (Whisper; `model`: tiny, base, small, medium, large-v3; `language`: e.g. `en`, `hi`, `ur`, or null to detect) or `file` (with `"file": "captions.srt"`) |
@@ -80,7 +80,7 @@ use, write a recipe and run `VideoMerger run recipe.json --json`, then check
 the result. A good first request:
 
 > Open *page*. Download the videos on it into `C:\VideoMerger\work`. Write `C:\VideoMerger\work\recipe.json`
-> that merges them in page order at 720p with subtitles from speech, and run
+> that merges them in page order at 1080p with subtitles from speech, and run
 > `C:\VideoMerger\VideoMerger.exe run C:\VideoMerger\work\recipe.json --json`. Tell me where the result is.
 
 Only use videos you have the right to use: your own, ones with permission, or

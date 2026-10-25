@@ -68,32 +68,18 @@
                 app:singleSelection="true">
 
                 <com.google.android.material.chip.Chip
-                    android:id="@+id/res_original"
-                    style="@style/Widget.Material3.Chip.Filter"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Original" />
-
-                <com.google.android.material.chip.Chip
                     android:id="@+id/res_1080"
                     style="@style/Widget.Material3.Chip.Filter"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="1080p" />
+                    android:text="@string/res_1080" />
 
                 <com.google.android.material.chip.Chip
-                    android:id="@+id/res_720"
+                    android:id="@+id/res_1440"
                     style="@style/Widget.Material3.Chip.Filter"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="720p" />
-
-                <com.google.android.material.chip.Chip
-                    android:id="@+id/res_480"
-                    style="@style/Widget.Material3.Chip.Filter"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="480p" />
+                    android:text="@string/res_1440" />
             </com.google.android.material.chip.ChipGroup>
 
             <TextView

@@ -5,7 +5,7 @@ A small Android app to join several videos into one and do simple edits:
 - **Merge:** pick any number of videos from the gallery; they are joined in the order shown. Move clips up or down to reorder.
 - **Trim:** keep only part of each clip (range slider, to a tenth of a second).
 - **Rotate:** turn a clip by 90° at a time.
-- **Output size:** Original, 1080p, 720p or 480p. The first clip sets landscape or portrait; clips of another shape get black bars.
+- **Output size:** 1080p (Full HD) or 1440p (2K). Smaller clips are scaled up, so output is never below 1080p. The first clip sets landscape or portrait; clips of another shape get black bars.
 - **Sound from another file:** take the picture from your clips and the sound from a different video or an audio file (MP3, M4A, WAV…). Trim the sound, repeat it if it is shorter than the video, and either replace the clips' own sound or mix both. The sound stops when the video ends.
 - **Remove the clips' own sound:** export without it. Clips without sound can be mixed with clips that have it.
 - **Save, play and share:** the result goes to *Movies/Video Merger* in the gallery.

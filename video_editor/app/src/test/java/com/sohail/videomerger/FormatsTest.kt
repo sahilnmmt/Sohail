@@ -14,16 +14,15 @@ class FormatsTest {
 
     @Test
     fun outputSizeFollowsFirstClipShape() {
-        assertEquals(1280 to 720, outputSize(1920, 1080, 720))
-        assertEquals(720 to 1280, outputSize(1080, 1920, 720))
-        assertEquals(1920 to 1080, outputSize(1920, 1080, null))
+        assertEquals(1920 to 1080, outputSize(1920, 1080, 1080))
+        assertEquals(2560 to 1440, outputSize(1280, 720, 1440)) // 720p clip scaled up to 2K
+        assertEquals(1080 to 1920, outputSize(1080, 1920, 1080))
     }
 
     @Test
     fun outputSizeIsEven() {
-        // 4:3 at 480p is 640x480; an odd source keeps its shape but rounds down to even.
-        assertEquals(640 to 480, outputSize(1440, 1080, 480))
-        assertEquals(1278 to 720, outputSize(1279, 721, null))
+        assertEquals(1440 to 1080, outputSize(640, 480, 1080)) // 4:3
+        assertEquals(1080 to 1080, outputSize(1000, 1001, 1080)) // rounds down to even
     }
 
     @Test

@@ -7,10 +7,12 @@ import androidx.annotation.OptIn
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.transformer.Composition
+import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.Transformer
+import androidx.media3.transformer.VideoEncoderSettings
 import java.io.File
 
 /** Runs one Media3 Transformer export at a time. Call from the main thread. */
@@ -40,7 +42,16 @@ class Exporter(
         output.parentFile?.mkdirs()
         output.delete()
 
+        val first = clips.first()
+        val (width, height) = outputSize(first.outputWidth, first.outputHeight, settings.resolution.shortSide)
+        // About 0.2 bits per pixel at 30 fps: ~12 Mbit/s for 1080p, ~22 Mbit/s for 2K.
+        val bitrate = (width.toLong() * height * 30 / 5).toInt()
+        val encoders = DefaultEncoderFactory.Builder(context)
+            .setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(bitrate).build())
+            .build()
+
         transformer = Transformer.Builder(context)
+            .setEncoderFactory(encoders)
             .setVideoMimeType(MimeTypes.VIDEO_H264)
             .setAudioMimeType(MimeTypes.AUDIO_AAC)
             .addListener(object : Transformer.Listener {

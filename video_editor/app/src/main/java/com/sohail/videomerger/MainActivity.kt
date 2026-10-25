@@ -59,10 +59,8 @@ class MainActivity : AppCompatActivity(), ClipAdapter.Actions {
     }
 
     private val resolutionChips = mapOf(
-        R.id.res_original to Resolution.ORIGINAL,
         R.id.res_1080 to Resolution.P1080,
-        R.id.res_720 to Resolution.P720,
-        R.id.res_480 to Resolution.P480,
+        R.id.res_1440 to Resolution.P1440,
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {

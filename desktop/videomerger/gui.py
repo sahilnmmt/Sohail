@@ -175,12 +175,12 @@ class App:
         settings = ttk.LabelFrame(main, text="Picture", padding=6)
         settings.grid(row=1, column=0, sticky="nsew", **pad)
         ttk.Label(settings, text="Output size").grid(row=0, column=0, sticky="w")
-        self.resolution = tk.StringVar(value="720p")
+        self.resolution = tk.StringVar(value="1080p")
         ttk.Combobox(settings, textvariable=self.resolution, values=list(RESOLUTIONS), state="readonly", width=10).grid(row=0, column=1, sticky="w", padx=6)
         ttk.Label(settings, text="Frames per second").grid(row=1, column=0, sticky="w")
         self.fps = tk.StringVar(value="30")
         ttk.Combobox(settings, textvariable=self.fps, values=["24", "25", "30", "50", "60"], state="readonly", width=10).grid(row=1, column=1, sticky="w", padx=6, pady=2)
-        ttk.Label(settings, text="The first clip decides landscape or portrait;\nother shapes get black bars.", foreground="gray").grid(row=2, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        ttk.Label(settings, text="1440p is 2K. Smaller clips are scaled up.\nThe first clip decides landscape or portrait;\nother shapes get black bars.", foreground="gray").grid(row=2, column=0, columnspan=2, sticky="w", pady=(4, 0))
 
         # Sound
         sound = ttk.LabelFrame(main, text="Sound", padding=6)

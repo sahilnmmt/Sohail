@@ -107,8 +107,8 @@ def pexels_search(query: str, count: int = 3, api_key: str | None = None, orient
         files = [f for f in video.get("video_files", []) if f.get("file_type") == "video/mp4" and f.get("link")]
         if not files:
             continue
-        # The largest file that is at most 1080p on its short side.
-        fitting = [f for f in files if min(f.get("width") or 0, f.get("height") or 0) <= 1080] or files
+        # The largest file up to 2K (1440 on its short side); bigger 4K files only slow the export.
+        fitting = [f for f in files if min(f.get("width") or 0, f.get("height") or 0) <= 1440] or files
         best = max(fitting, key=lambda f: (f.get("width") or 0) * (f.get("height") or 0))
         results.append(
             {

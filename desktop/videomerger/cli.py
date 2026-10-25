@@ -163,7 +163,7 @@ def parser() -> argparse.ArgumentParser:
     merge = sub.add_parser("merge", help="merge clips without writing a recipe")
     merge.add_argument("clips", nargs="+", help="video files or direct http(s) links, in order")
     merge.add_argument("-o", "--output", default="merged.mp4")
-    merge.add_argument("-r", "--resolution", choices=list(RESOLUTIONS), default="720p")
+    merge.add_argument("-r", "--resolution", choices=list(RESOLUTIONS) + ["2k"], default="1080p", help="1080p or 1440p (2K)")
     merge.add_argument("--fps", type=int, default=30)
     merge.add_argument("--mute-clips", action="store_true", help="drop the clips' own sound")
     merge.add_argument("--sound", help="take the sound from this video or audio file")

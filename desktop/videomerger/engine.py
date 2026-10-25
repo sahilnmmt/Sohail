@@ -57,15 +57,13 @@ class Result:
     height: int
 
 
-def output_size(width: int, height: int, short_side: int | None) -> tuple[int, int]:
-    """The first clip sets the shape; short_side scales it, None keeps its size. Encoders need even sizes."""
+def output_size(width: int, height: int, short_side: int) -> tuple[int, int]:
+    """The first clip sets the shape (landscape or portrait); short_side sets its size. Encoders need even sizes."""
 
     def even(v: float) -> int:
         v = int(round(v))
         return max(2, v - v % 2)
 
-    if short_side is None:
-        return even(width), even(height)
     scale = short_side / min(width, height)
     return even(width * scale), even(height * scale)
 
@@ -171,7 +169,7 @@ class Job:
             if video:
                 chains.append(
                     f"[{i}:v:0]{_rotate_filter(seg.rotate)}"
-                    f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+                    f"scale={width}:{height}:force_original_aspect_ratio=decrease:flags=lanczos,"
                     f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,"
                     f"fps={fps},format=yuv420p,trim=duration={d},setpts=PTS-STARTPTS[v{i}]"
                 )
@@ -298,9 +296,10 @@ class Job:
 
             partial = os.path.join(work, "out.mp4")
             args, graph, maps = self.graph(video=True, subtitle_file=subtitle_file)
-            encode = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p"]
+            # High quality for 1080p/2K: CRF 18 is close to visually lossless.
+            encode = ["-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p"]
             if self.has_audio:
-                encode += ["-c:a", "aac", "-b:a", "160k"]
+                encode += ["-c:a", "aac", "-b:a", "192k"]
             self._ffmpeg(args + ["-filter_complex", graph] + maps + encode + ["-movflags", "+faststart", partial], "encode", cwd=work)
             shutil.move(partial, output)
 

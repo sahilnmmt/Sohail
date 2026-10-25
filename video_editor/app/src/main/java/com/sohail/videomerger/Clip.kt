@@ -26,11 +26,10 @@ data class Clip(
     val outputHeight get() = if (rotation % 180 == 0) height else width
 }
 
-enum class Resolution(val shortSide: Int?, val label: String) {
-    ORIGINAL(null, "Original"),
-    P1080(1080, "1080p"),
-    P720(720, "720p"),
-    P480(480, "480p"),
+/** Short side of the output in pixels. Smaller clips are scaled up, so output is never below 1080p. */
+enum class Resolution(val shortSide: Int) {
+    P1080(1080),
+    P1440(1440), // 2K
 }
 
 data class ExportSettings(

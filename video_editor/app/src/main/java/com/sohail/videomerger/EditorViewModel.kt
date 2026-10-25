@@ -31,7 +31,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     /** One-off messages for a toast; cleared once shown. */
     val message = MutableLiveData<String?>()
 
-    var resolution = Resolution.P720
+    var resolution = Resolution.P1080
     var muteAudio = false
 
     private var nextId = 1L

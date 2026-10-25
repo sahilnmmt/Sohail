@@ -4,7 +4,7 @@ Example::
 
     {
       "output": "merged.mp4",
-      "resolution": "720p",
+      "resolution": "1080p",
       "clips": [
         {"path": "intro.mp4", "start": "0:02", "end": "0:10", "rotate": 90},
         {"path": "https://example.com/clip.mp4"}
@@ -22,7 +22,9 @@ import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-RESOLUTIONS = {"original": None, "1080p": 1080, "720p": 720, "480p": 480}
+# Short side of the output in pixels. Smaller clips are scaled up.
+RESOLUTIONS = {"1080p": 1080, "1440p": 1440}
+RESOLUTION_ALIASES = {"2k": "1440p", "1440": "1440p", "1080": "1080p", "fhd": "1080p", "full hd": "1080p"}
 ROTATIONS = (0, 90, 180, 270)
 SUBTITLE_MODES = ("off", "speech", "file")
 WHISPER_MODELS = ("tiny", "base", "small", "medium", "large-v3")
@@ -91,7 +93,7 @@ class Subtitles:
 class Recipe:
     clips: list[Clip]
     output: str = "merged.mp4"
-    resolution: str = "720p"
+    resolution: str = "1080p"
     fps: int = 30
     mute_clips: bool = False
     """Drop the clips' own sound. An added sound is still used."""
@@ -107,7 +109,7 @@ class Recipe:
         return str(p if p.is_absolute() else (Path(self.base_dir) / p).resolve())
 
     @property
-    def short_side(self) -> int | None:
+    def short_side(self) -> int:
         return RESOLUTIONS[self.resolution]
 
     def to_dict(self) -> dict:
@@ -167,9 +169,10 @@ def from_dict(data: dict, base_dir: str | Path = ".") -> Recipe:
             raise RecipeError(f"{what}: end must be after start")
         clips.append(clip)
 
-    resolution = str(data.get("resolution", "720p")).lower()
+    resolution = str(data.get("resolution", "1080p")).strip().lower()
+    resolution = RESOLUTION_ALIASES.get(resolution, resolution)
     if resolution not in RESOLUTIONS:
-        raise RecipeError(f"recipe.resolution: use one of {', '.join(RESOLUTIONS)}")
+        raise RecipeError("recipe.resolution: use 1080p or 1440p (2K); output is never below 1080p")
     fps = _get(data, "fps", int, 30, "recipe")
     if not 1 <= fps <= 120:
         raise RecipeError("recipe.fps: use 1 to 120")

@@ -1,6 +1,6 @@
 {
   "output": "my-video.mp4",
-  "resolution": "720p",
+  "resolution": "1080p",
   "fps": 30,
   "mute_clips": false,
   "clips": [

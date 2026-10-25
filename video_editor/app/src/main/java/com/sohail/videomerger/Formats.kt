@@ -13,11 +13,9 @@ fun formatDuration(ms: Long, tenths: Boolean = false): String {
 
 /**
  * Output frame size for a merge. The first clip sets the shape (landscape or
- * portrait); [shortSide] scales it, or null keeps the first clip's own size.
- * Encoders need even dimensions.
+ * portrait); [shortSide] sets its size. Encoders need even dimensions.
  */
-fun outputSize(firstWidth: Int, firstHeight: Int, shortSide: Int?): Pair<Int, Int> {
-    if (shortSide == null) return even(firstWidth) to even(firstHeight)
+fun outputSize(firstWidth: Int, firstHeight: Int, shortSide: Int): Pair<Int, Int> {
     val scale = shortSide.toDouble() / minOf(firstWidth, firstHeight)
     return even((firstWidth * scale).roundToInt()) to even((firstHeight * scale).roundToInt())
 }

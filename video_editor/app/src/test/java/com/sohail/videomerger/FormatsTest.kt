@@ -25,4 +25,14 @@ class FormatsTest {
         assertEquals(640 to 480, outputSize(1440, 1080, 480))
         assertEquals(1278 to 720, outputSize(1279, 721, null))
     }
+
+    @Test
+    fun soundStopsWithTheVideoUnlessLooping() {
+        // 60 s song, video 20 s: cut at 20 s after the trim start.
+        assertEquals(30_000, soundEndMs(10_000, 60_000, loop = false, videoMs = 20_000))
+        // A shorter sound just ends.
+        assertEquals(15_000, soundEndMs(5_000, 15_000, loop = false, videoMs = 20_000))
+        // Looping keeps the whole kept part; Media3 repeats it until the video ends.
+        assertEquals(15_000, soundEndMs(5_000, 15_000, loop = true, videoMs = 20_000))
+    }
 }

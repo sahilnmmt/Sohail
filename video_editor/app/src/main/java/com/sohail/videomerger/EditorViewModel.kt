@@ -22,6 +22,9 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     private val _clips = MutableLiveData<List<Clip>>(emptyList())
     val clips: LiveData<List<Clip>> = _clips
 
+    private val _audio = MutableLiveData<AudioSource?>(null)
+    val audio: LiveData<AudioSource?> = _audio
+
     private val _export = MutableLiveData<ExportState>(ExportState.Idle)
     val export: LiveData<ExportState> = _export
 
@@ -70,11 +73,40 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
 
     fun clip(id: Long) = current.firstOrNull { it.id == id }
 
+    /** Uses the sound of [uri] (a video or audio file) and, by default, drops the clips' own sound. */
+    fun setAudio(uri: Uri) {
+        viewModelScope.launch {
+            val loaded = withContext(Dispatchers.IO) { ClipLoader.loadAudio(getApplication(), uri) }
+            if (loaded == null) {
+                message.value = "That file has no sound that can be read"
+                return@launch
+            }
+            if (_audio.value == null) muteAudio = true
+            _audio.value = loaded
+            resetExport()
+        }
+    }
+
+    fun trimAudio(startMs: Long, endMs: Long) = editAudio { it.copy(trimStartMs = startMs, trimEndMs = endMs) }
+
+    fun setAudioLoop(loop: Boolean) = editAudio { it.copy(loop = loop) }
+
+    fun removeAudio() {
+        _audio.value = null
+        muteAudio = false
+        resetExport()
+    }
+
+    private fun editAudio(change: (AudioSource) -> AudioSource) {
+        _audio.value = _audio.value?.let(change)
+        resetExport()
+    }
+
     fun startExport() {
         val clips = current
         if (clips.isEmpty() || _export.value is ExportState.Running) return
         _export.value = ExportState.Running(0)
-        exporter.start(clips, ExportSettings(resolution, muteAudio))
+        exporter.start(clips, ExportSettings(resolution, muteAudio, _audio.value))
     }
 
     fun cancelExport() {

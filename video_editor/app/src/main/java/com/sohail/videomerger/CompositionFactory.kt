@@ -11,7 +11,11 @@ import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.Effects
 
-/** Turns the clip list into one Media3 sequence: clips play back to back in a single output. */
+/**
+ * Turns the clip list into one Media3 sequence: clips play back to back in a
+ * single output. An audio source becomes a second, sound-only sequence that
+ * Media3 mixes with the first.
+ */
 @OptIn(UnstableApi::class)
 fun buildComposition(clips: List<Clip>, settings: ExportSettings): Composition {
     val first = clips.first()
@@ -44,10 +48,29 @@ fun buildComposition(clips: List<Clip>, settings: ExportSettings): Composition {
             .build()
     }
 
-    return Composition.Builder(EditedMediaItemSequence(items))
+    val sequences = mutableListOf(EditedMediaItemSequence(items))
+    settings.audio?.let { sequences += audioSequence(it, clips.sumOf { clip -> clip.keptMs }) }
+
+    return Composition.Builder(sequences)
         .apply {
             // Adds silence for clips that have no sound, so a merge can mix clips with and without audio.
             if (!settings.muteAudio) experimentalSetForceAudioTrack(true)
         }
         .build()
+}
+
+@OptIn(UnstableApi::class)
+private fun audioSequence(audio: AudioSource, videoMs: Long): EditedMediaItemSequence {
+    val endMs = soundEndMs(audio.trimStartMs, audio.trimEndMs, audio.loop, videoMs)
+    val mediaItem = MediaItem.Builder()
+        .setUri(audio.uri)
+        .setClippingConfiguration(
+            MediaItem.ClippingConfiguration.Builder()
+                .setStartPositionMs(audio.trimStartMs)
+                .setEndPositionMs(endMs)
+                .build(),
+        )
+        .build()
+    val item = EditedMediaItem.Builder(mediaItem).setRemoveVideo(true).build()
+    return EditedMediaItemSequence(listOf(item), audio.loop)
 }

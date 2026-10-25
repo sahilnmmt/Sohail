@@ -40,9 +40,22 @@ class MainActivity : AppCompatActivity(), ClipAdapter.Actions {
     private lateinit var resultRow: View
     private lateinit var playButton: Button
     private lateinit var shareButton: Button
+    private lateinit var soundInfo: TextView
+    private lateinit var soundAdd: Button
+    private lateinit var soundTrim: View
+    private lateinit var soundRemove: View
+    private lateinit var soundLoop: MaterialSwitch
 
     private val pickVideos = registerForActivityResult(ActivityResultContracts.PickMultipleVisualMedia()) { uris ->
         viewModel.addVideos(uris)
+    }
+
+    private val pickSoundVideo = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        uri?.let(viewModel::setAudio)
+    }
+
+    private val pickSoundFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(viewModel::setAudio)
     }
 
     private val resolutionChips = mapOf(
@@ -73,6 +86,11 @@ class MainActivity : AppCompatActivity(), ClipAdapter.Actions {
         resultRow = findViewById(R.id.result_row)
         playButton = findViewById(R.id.play)
         shareButton = findViewById(R.id.share)
+        soundInfo = findViewById(R.id.sound_info)
+        soundAdd = findViewById(R.id.sound_add)
+        soundTrim = findViewById(R.id.sound_trim)
+        soundRemove = findViewById(R.id.sound_remove)
+        soundLoop = findViewById(R.id.sound_loop)
 
         findViewById<RecyclerView>(R.id.clips).apply {
             layoutManager = LinearLayoutManager(this@MainActivity)
@@ -90,6 +108,17 @@ class MainActivity : AppCompatActivity(), ClipAdapter.Actions {
         mute.setOnCheckedChangeListener { _, checked ->
             viewModel.muteAudio = checked
             viewModel.resetExport()
+            renderAudio(viewModel.audio.value)
+        }
+
+        soundAdd.setOnClickListener { chooseSound() }
+        soundRemove.setOnClickListener { viewModel.removeAudio() }
+        soundTrim.setOnClickListener {
+            val audio = viewModel.audio.value ?: return@setOnClickListener
+            showTrimDialog(audio.name, audio.durationMs, audio.trimStartMs, audio.trimEndMs, viewModel::trimAudio)
+        }
+        soundLoop.setOnCheckedChangeListener { _, checked ->
+            if (viewModel.audio.value?.loop != checked) viewModel.setAudioLoop(checked)
         }
 
         addButton.setOnClickListener {
@@ -105,6 +134,7 @@ class MainActivity : AppCompatActivity(), ClipAdapter.Actions {
             total.text = getString(R.string.total, clips.size, formatDuration(clips.sumOf { it.keptMs }))
             renderExport(viewModel.export.value ?: ExportState.Idle)
         }
+        viewModel.audio.observe(this, ::renderAudio)
         viewModel.export.observe(this, ::renderExport)
         viewModel.message.observe(this) { text ->
             if (text != null) {
@@ -124,6 +154,7 @@ class MainActivity : AppCompatActivity(), ClipAdapter.Actions {
         mergeButton.text = getString(if (hasClips && viewModel.clips.value!!.size == 1) R.string.save_one else R.string.merge)
         cancelButton.isVisible = running
         mute.isEnabled = !running
+        listOf(soundAdd, soundTrim, soundRemove, soundLoop).forEach { it.isEnabled = !running }
         for (i in 0 until resolutions.childCount) resolutions.getChildAt(i).isEnabled = !running
 
         progress.isVisible = running
@@ -149,6 +180,43 @@ class MainActivity : AppCompatActivity(), ClipAdapter.Actions {
         }
     }
 
+    private fun renderAudio(audio: AudioSource?) {
+        // The ViewModel may switch "remove the clips' own sound" on when a sound is added.
+        if (mute.isChecked != viewModel.muteAudio) mute.isChecked = viewModel.muteAudio
+        soundTrim.isVisible = audio != null
+        soundRemove.isVisible = audio != null
+        soundLoop.isVisible = audio != null
+        soundAdd.setText(if (audio == null) R.string.sound_add else R.string.sound_replace)
+        soundInfo.text = when {
+            audio != null -> getString(
+                R.string.sound_info,
+                audio.name,
+                if (audio.isTrimmed) {
+                    "${formatDuration(audio.trimStartMs, tenths = true)}–${formatDuration(audio.trimEndMs, tenths = true)}"
+                } else {
+                    formatDuration(audio.durationMs)
+                },
+                getString(if (viewModel.muteAudio) R.string.sound_replaces else R.string.sound_mixed),
+            )
+            viewModel.muteAudio -> getString(R.string.sound_none)
+            else -> getString(R.string.sound_original)
+        }
+        if (audio != null && soundLoop.isChecked != audio.loop) soundLoop.isChecked = audio.loop
+    }
+
+    private fun chooseSound() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.sound_pick_title)
+            .setItems(arrayOf(getString(R.string.sound_from_video), getString(R.string.sound_from_audio))) { _, which ->
+                if (which == 0) {
+                    pickSoundVideo.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
+                } else {
+                    pickSoundFile.launch(arrayOf("audio/*"))
+                }
+            }
+            .show()
+    }
+
     private fun open(intent: Intent) {
         try {
             startActivity(intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
@@ -165,16 +233,27 @@ class MainActivity : AppCompatActivity(), ClipAdapter.Actions {
 
     override fun remove(clip: Clip) = viewModel.remove(clip.id)
 
-    override fun trim(clip: Clip) {
+    override fun trim(clip: Clip) =
+        showTrimDialog(clip.name, clip.durationMs, clip.trimStartMs, clip.trimEndMs) { start, end ->
+            viewModel.trim(clip.id, start, end)
+        }
+
+    private fun showTrimDialog(
+        name: String,
+        durationMs: Long,
+        startMs: Long,
+        endMs: Long,
+        onApply: (startMs: Long, endMs: Long) -> Unit,
+    ) {
         val view = layoutInflater.inflate(R.layout.dialog_trim, null)
         val slider: RangeSlider = view.findViewById(R.id.range)
         val summary: TextView = view.findViewById(R.id.trim_summary)
-        val seconds = clip.durationMs / 1000f
+        val seconds = durationMs / 1000f
 
         slider.valueFrom = 0f
         slider.valueTo = seconds
         if (seconds > 0.2f) slider.setMinSeparationValue(0.1f)
-        slider.values = listOf(clip.trimStartMs / 1000f, clip.trimEndMs / 1000f)
+        slider.values = listOf(startMs / 1000f, endMs / 1000f)
         slider.setLabelFormatter { formatDuration((it * 1000).roundToLong(), tenths = true) }
 
         fun showSummary() {
@@ -190,13 +269,13 @@ class MainActivity : AppCompatActivity(), ClipAdapter.Actions {
         slider.addOnChangeListener { _, _, _ -> showSummary() }
 
         MaterialAlertDialogBuilder(this)
-            .setTitle(getString(R.string.trim_title, clip.name))
+            .setTitle(getString(R.string.trim_title, name))
             .setView(view)
             .setPositiveButton(R.string.apply) { _, _ ->
-                val (start, end) = slider.values.map { (it * 1000).roundToLong().coerceIn(0, clip.durationMs) }
-                viewModel.trim(clip.id, start, maxOf(end, start + 100).coerceAtMost(clip.durationMs))
+                val (start, end) = slider.values.map { (it * 1000).roundToLong().coerceIn(0, durationMs) }
+                onApply(start, maxOf(end, start + 100).coerceAtMost(durationMs))
             }
-            .setNeutralButton(R.string.reset) { _, _ -> viewModel.trim(clip.id, 0, clip.durationMs) }
+            .setNeutralButton(R.string.reset) { _, _ -> onApply(0, durationMs) }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }

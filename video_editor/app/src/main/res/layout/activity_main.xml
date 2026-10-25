@@ -96,6 +96,57 @@
                     android:text="480p" />
             </com.google.android.material.chip.ChipGroup>
 
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/sound"
+                android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/sound_info"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="middle"
+                    android:maxLines="2"
+                    android:textAppearance="?attr/textAppearanceBodyMedium" />
+
+                <Button
+                    android:id="@+id/sound_add"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/sound_add" />
+
+                <ImageButton
+                    android:id="@+id/sound_trim"
+                    style="@style/ClipAction"
+                    android:contentDescription="@string/sound_trim"
+                    android:src="@drawable/ic_cut"
+                    android:visibility="gone" />
+
+                <ImageButton
+                    android:id="@+id/sound_remove"
+                    style="@style/ClipAction"
+                    android:contentDescription="@string/sound_remove"
+                    android:src="@drawable/ic_delete"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/sound_loop"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/sound_loop"
+                android:visibility="gone" />
+
             <com.google.android.material.materialswitch.MaterialSwitch
                 android:id="@+id/mute"
                 android:layout_width="match_parent"

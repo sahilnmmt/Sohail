@@ -33,11 +33,30 @@ enum class Resolution(val shortSide: Int?, val label: String) {
     P480(480, "480p"),
 }
 
-data class ExportSettings(val resolution: Resolution, val muteAudio: Boolean)
+data class ExportSettings(
+    val resolution: Resolution,
+    /** Drop the clips' own sound. An [audio] source is still added. */
+    val muteAudio: Boolean,
+    val audio: AudioSource? = null,
+)
 
 sealed interface ExportState {
     data object Idle : ExportState
     data class Running(val percent: Int) : ExportState
     data class Done(val uri: Uri) : ExportState
     data class Failed(val message: String) : ExportState
+}
+
+/** Sound taken from another video or an audio file and laid over the merged video. */
+data class AudioSource(
+    val uri: Uri,
+    val name: String,
+    val durationMs: Long,
+    val trimStartMs: Long = 0,
+    val trimEndMs: Long = durationMs,
+    /** Repeat the sound when it is shorter than the video. */
+    val loop: Boolean = true,
+) {
+    val isTrimmed get() = trimStartMs > 0 || trimEndMs < durationMs
+    val keptMs get() = trimEndMs - trimStartMs
 }

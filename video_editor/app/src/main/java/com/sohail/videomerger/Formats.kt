@@ -22,4 +22,12 @@ fun outputSize(firstWidth: Int, firstHeight: Int, shortSide: Int?): Pair<Int, In
     return even((firstWidth * scale).roundToInt()) to even((firstHeight * scale).roundToInt())
 }
 
+/**
+ * Where an added sound stops, in the sound file's own time. A looping sound
+ * plays its whole kept part and repeats until the video ends; otherwise it is
+ * cut where the video stops, so the output is never longer than the video.
+ */
+fun soundEndMs(trimStartMs: Long, trimEndMs: Long, loop: Boolean, videoMs: Long): Long =
+    if (loop) trimEndMs else minOf(trimEndMs, trimStartMs + videoMs)
+
 private fun even(value: Int) = maxOf(2, value - value % 2)

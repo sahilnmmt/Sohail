@@ -6,7 +6,8 @@ A small Android app to join several videos into one and do simple edits:
 - **Trim:** keep only part of each clip (range slider, to a tenth of a second).
 - **Rotate:** turn a clip by 90° at a time.
 - **Output size:** Original, 1080p, 720p or 480p. The first clip sets landscape or portrait; clips of another shape get black bars.
-- **Remove sound:** export without audio. Clips without sound can be mixed with clips that have it.
+- **Sound from another file:** take the picture from your clips and the sound from a different video or an audio file (MP3, M4A, WAV…). Trim the sound, repeat it if it is shorter than the video, and either replace the clips' own sound or mix both. The sound stops when the video ends.
+- **Remove the clips' own sound:** export without it. Clips without sound can be mixed with clips that have it.
 - **Save, play and share:** the result goes to *Movies/Video Merger* in the gallery.
 
 Exports run on the phone's hardware video encoder with
@@ -41,6 +42,6 @@ cd video_editor
 |---|---|
 | `MainActivity.kt` | Screen: clip list, trim dialog, export settings and buttons |
 | `EditorViewModel.kt` | Clip list and edits, runs the export, saves to the gallery |
-| `CompositionFactory.kt` | Turns the clips into one Media3 sequence with trim, rotate and resize |
+| `CompositionFactory.kt` | Turns the clips into one Media3 sequence with trim, rotate and resize, plus a sound-only sequence for an added sound |
 | `Exporter.kt` | Runs Media3 Transformer and reports progress |
-| `ClipLoader.kt` | Reads a video's length, size and thumbnail |
+| `ClipLoader.kt` | Reads a video's length, size and thumbnail, or a sound file's length |

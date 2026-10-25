@@ -37,6 +37,19 @@ object ClipLoader {
         null
     }
 
+    /** Reads the sound of a video or audio file, or returns null if it has none. */
+    fun loadAudio(context: Context, uri: Uri): AudioSource? = try {
+        MediaMetadataRetriever().use { retriever ->
+            retriever.setDataSource(context, uri)
+            if (retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO) != "yes") return null
+            val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull()?.takeIf { it > 0 } ?: return null
+            AudioSource(uri, displayName(context, uri) ?: "Sound", durationMs)
+        }
+    } catch (e: Exception) {
+        null
+    }
+
     private fun displayName(context: Context, uri: Uri): String? =
         context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
             if (cursor.moveToFirst()) cursor.getString(0) else null

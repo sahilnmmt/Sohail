@@ -34,6 +34,9 @@ class KnownDevice {
   String vendor;
   String ip;
   Link link;
+
+  /// The router it was last seen on.
+  String via;
   final DateTime firstSeen;
   DateTime lastSeen;
 
@@ -57,6 +60,7 @@ class KnownDevice {
     this.vendor = '',
     required this.ip,
     required this.link,
+    this.via = '',
     required this.firstSeen,
     required this.lastSeen,
     this.chosenKind,
@@ -79,6 +83,7 @@ class KnownDevice {
         if (alias != null) 'alias': alias,
         'host': hostname,
         if (vendor.isNotEmpty) 'vendor': vendor,
+        if (via.isNotEmpty) 'via': via,
         'ip': ip,
         'link': link.name,
         'first': firstSeen.millisecondsSinceEpoch,
@@ -96,6 +101,7 @@ class KnownDevice {
         alias: j['alias'] as String?,
         hostname: j['host'] as String? ?? '',
         vendor: j['vendor'] as String? ?? '',
+        via: j['via'] as String? ?? '',
         ip: j['ip'] as String? ?? '',
         link: Link.values.asNameMap()[j['link']] ?? Link.unknown,
         firstSeen: DateTime.fromMillisecondsSinceEpoch((j['first'] as num).toInt()),
@@ -162,6 +168,7 @@ class UsageData {
       }
       if (c.hostname.isNotEmpty) d.hostname = c.hostname;
       if (c.vendor.isNotEmpty) d.vendor = c.vendor;
+      if (c.via.isNotEmpty) d.via = c.via;
       d
         ..ip = c.ip
         ..link = c.link

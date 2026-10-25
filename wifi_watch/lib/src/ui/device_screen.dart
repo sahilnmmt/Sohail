@@ -195,6 +195,7 @@ class DeviceScreen extends StatelessWidget {
               _Row('IP address', d.ip),
               _Row('MAC address', isPrivateMac(d.mac) ? '${d.mac}\n(private address: the device made it up for this network)' : d.mac),
               _Row('Connection', linkLabel(d.link)),
+              if (monitor.multipleRouters && d.via.isNotEmpty) _Row('Router', d.via),
               _Row('First seen', formatDateTime(d.firstSeen)),
               _Row('Last seen', formatDateTime(d.lastSeen)),
             ],

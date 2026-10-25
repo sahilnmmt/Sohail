@@ -1,4 +1,4 @@
-// Polls the router while the app is open and keeps the usage history.
+// Polls the routers while the app is open and keeps the usage history.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'device_kind.dart';
 import 'router/demo_source.dart';
+import 'router/linksys_client.dart';
 import 'router/router_source.dart';
 import 'router/tplink_client.dart';
 import 'settings.dart';
@@ -15,57 +16,99 @@ import 'usage.dart';
 
 enum MonitorState { idle, connecting, ok, error }
 
+/// One router's connection.
+class RouterStatus {
+  final RouterSetup config;
+  final RouterSource source;
+  MonitorState state = MonitorState.connecting;
+  String? error;
+  DateTime? updatedAt;
+  int online = 0;
+
+  /// After a wrong password: not asked again, so the router does not lock
+  /// its login.
+  bool stopped = false;
+
+  RouterStatus(this.config, this.source);
+
+  String get name => config.displayName;
+}
+
 class Monitor extends ChangeNotifier {
   static const _saveEvery = Duration(minutes: 1);
 
-  final RouterSource Function(AppSettings) _makeSource;
+  final RouterSource Function(RouterSetup) _makeSource;
 
-  /// Called when a TP-Link router's protocol variant is found, to remember it.
-  void Function(String variant, String user)? onVariantFound;
+  /// Called when a TP-Link router's protocol variant and user name are
+  /// found, to remember them.
+  void Function(String routerId, String variant, String user)? onVariantFound;
 
   AppSettings _settings = const AppSettings();
-  RouterSource? _source;
+  List<RouterStatus> routers = [];
   Timer? _timer;
   bool _polling = false;
   bool _running = false;
   DateTime _lastSave = DateTime.fromMillisecondsSinceEpoch(0);
 
-  MonitorState state = MonitorState.idle;
-  String? error;
-  String sourceName = '';
   DateTime? updatedAt;
   UsageData usage = UsageData();
 
-  /// Online devices from the last snapshot, by MAC.
+  /// Online devices from the last poll of all routers, by MAC.
   Map<String, ClientInfo> live = {};
 
-  Monitor({RouterSource Function(AppSettings)? makeSource}) : _makeSource = makeSource ?? defaultSource;
+  Monitor({RouterSource Function(RouterSetup)? makeSource}) : _makeSource = makeSource ?? defaultSource;
 
-  static RouterSource defaultSource(AppSettings s) => switch (s.source) {
-        SourceKind.demo => DemoSource(),
-        SourceKind.tplink => TplinkClient(
-            host: s.host, username: s.username, password: s.password, variant: TpVariant.parse(s.variant)),
+  static RouterSource defaultSource(RouterSetup r) => switch (r.kind) {
+        RouterKind.demo => DemoSource(),
+        RouterKind.tplink => TplinkClient(
+            host: r.host, username: r.username, password: r.password, variant: TpVariant.parse(r.variant)),
+        RouterKind.linksys => LinksysClient(host: r.host, username: r.username, password: r.password),
       };
 
-  static String _usageKey(SourceKind k) => 'wifiwatch.usage.${k.name}';
+  bool get multipleRouters => routers.length > 1;
+
+  /// All routers together: ok if any answered, error if none did.
+  MonitorState get state {
+    if (routers.isEmpty) return MonitorState.idle;
+    if (routers.any((r) => r.state == MonitorState.ok)) return MonitorState.ok;
+    if (routers.every((r) => r.state == MonitorState.error)) return MonitorState.error;
+    return MonitorState.connecting;
+  }
+
+  /// The routers that failed, one line each.
+  String? get error {
+    final failed = routers.where((r) => r.state == MonitorState.error).toList();
+    if (failed.isEmpty) return null;
+    if (!multipleRouters) return failed.single.error;
+    return failed.map((r) => '${r.name}: ${r.error}').join('\n');
+  }
+
+  String get sourceName {
+    if (routers.isEmpty) return '';
+    if (!multipleRouters) {
+      final r = routers.single;
+      return r.config.name.trim().isNotEmpty ? r.config.name.trim() : r.source.name;
+    }
+    return '${routers.length} routers';
+  }
+
+  static String _usageKey(AppSettings s) => 'wifiwatch.usage.${s.isDemo ? 'demo' : 'tplink'}';
 
   /// Starts (or restarts, for new settings) polling.
   Future<void> start(AppSettings s) async {
-    if (_source != null && s.sameRouter(_settings)) {
+    if (routers.isNotEmpty && s.sameRouters(_settings)) {
       _settings = s;
       _schedule();
+      notifyListeners();
       return;
     }
-    // Saves the history under the old settings' source.
+    // Saves the history under the old settings.
     await stop();
     _settings = s;
-    usage = await _loadUsage(s.source);
+    usage = await _loadUsage(s);
     live = {};
     updatedAt = null;
-    error = null;
-    _source = _makeSource(s);
-    sourceName = _source!.name;
-    state = MonitorState.connecting;
+    routers = [for (final r in s.routers) RouterStatus(r, _makeSource(r))];
     notifyListeners();
     _running = true;
     _schedule();
@@ -83,11 +126,13 @@ class Monitor extends ChangeNotifier {
     _running = false;
     _timer?.cancel();
     _timer = null;
-    final source = _source;
-    if (source == null) return;
-    _source = null;
+    final old = routers;
+    if (old.isEmpty) return;
+    routers = [];
     await save();
-    await source.close();
+    for (final r in old) {
+      await r.source.close();
+    }
   }
 
   /// Connects again from scratch, e.g. after an error.
@@ -102,43 +147,78 @@ class Monitor extends ChangeNotifier {
   }
 
   Future<void> poll() async {
-    final source = _source;
-    if (source == null || _polling) return;
+    final current = routers;
+    if (current.isEmpty || _polling) return;
     _polling = true;
     try {
-      final snap = await source.fetch();
-      if (!identical(source, _source)) return;
-      usage.record(snap,
+      final results = await Future.wait([
+        for (final r in current)
+          if (r.stopped) Future<RouterSnapshot?>.value(null) else _fetch(r),
+      ]);
+      if (!identical(current, routers)) return;
+      final snaps = results.whereType<RouterSnapshot>().toList();
+      if (snaps.isEmpty) {
+        live = {};
+        return;
+      }
+      final merged = mergeSnapshots([
+        for (final (i, s) in results.indexed)
+          if (s != null) (current[i].name, s),
+      ]);
+      usage.record(merged,
           maxGap: Duration(seconds: _settings.pollSeconds * 3),
           presenceGap: Duration(seconds: max(300, _settings.pollSeconds * 3)));
-      live = {for (final c in snap.clients) c.mac: c};
-      updatedAt = snap.at;
-      state = MonitorState.ok;
-      error = null;
-      sourceName = source.name;
-      if (source is TplinkClient &&
-          source.variant != null &&
-          (source.variant!.id != _settings.variant || _settings.username.trim().isEmpty)) {
-        // Remember the user name too, so an automatic search does not cost a
-        // failed login every time.
-        _settings = _settings.copyWith(variant: () => source.variant!.id, username: source.user);
-        onVariantFound?.call(source.variant!.id, source.user ?? _settings.username);
-      }
-      if (snap.at.difference(_lastSave) > _saveEvery) await save();
-    } catch (e) {
-      if (!identical(source, _source)) return;
-      state = MonitorState.error;
-      error = '$e';
-      live = {};
-      // A wrong password stays wrong; don't lock the router's login.
-      if (e is RouterException && e.wrongPassword) {
-        _running = false;
-        _timer?.cancel();
-      }
+      live = {for (final c in merged.clients) c.mac: c};
+      updatedAt = merged.at;
+      if (merged.at.difference(_lastSave) > _saveEvery) await save();
     } finally {
       _polling = false;
       notifyListeners();
     }
+  }
+
+  Future<RouterSnapshot?> _fetch(RouterStatus r) async {
+    try {
+      final snap = await r.source.fetch();
+      r
+        ..state = MonitorState.ok
+        ..error = null
+        ..updatedAt = snap.at
+        ..online = snap.clients.length;
+      final s = r.source;
+      if (s is TplinkClient &&
+          s.variant != null &&
+          (s.variant!.id != r.config.variant || r.config.username.trim().isEmpty)) {
+        // Remember the user name too, so an automatic search does not cost
+        // a failed login every time.
+        final found = r.config.copyWith(variant: () => s.variant!.id, username: s.user);
+        _settings = _settings.withRouter(found);
+        onVariantFound?.call(r.config.id, s.variant!.id, s.user ?? r.config.username);
+      }
+      return snap;
+    } catch (e) {
+      r
+        ..state = MonitorState.error
+        ..error = '$e';
+      if (e is RouterException && e.wrongPassword) r.stopped = true;
+      return null;
+    }
+  }
+
+  /// One list from several routers, each device once and marked with the
+  /// router it came from. A device two routers see (a second router is a
+  /// device of the first) is taken from the one that measures its traffic,
+  /// else from the first router.
+  static RouterSnapshot mergeSnapshots(List<(String, RouterSnapshot)> snaps) {
+    final byMac = <String, ClientInfo>{};
+    for (final (router, snap) in snaps) {
+      for (final c in snap.clients) {
+        final seen = byMac[c.mac];
+        if (seen == null || (!seen.hasTraffic && c.hasTraffic)) byMac[c.mac] = c.withVia(router);
+      }
+    }
+    final at = snaps.map((s) => s.$2.at).reduce((a, b) => a.isAfter(b) ? a : b);
+    return RouterSnapshot(at, byMac.values.toList());
   }
 
   void rename(String mac, String alias) {
@@ -189,10 +269,10 @@ class Monitor extends ChangeNotifier {
     await save();
   }
 
-  Future<UsageData> _loadUsage(SourceKind k) async {
+  Future<UsageData> _loadUsage(AppSettings s) async {
     try {
       final p = await SharedPreferences.getInstance();
-      final raw = p.getString(_usageKey(k));
+      final raw = p.getString(_usageKey(s));
       if (raw != null) return UsageData.fromJson((jsonDecode(raw) as Map).cast<String, Object?>());
     } catch (e) {
       debugPrint('Usage history unreadable, starting again: $e');
@@ -203,7 +283,7 @@ class Monitor extends ChangeNotifier {
   Future<void> save() async {
     _lastSave = DateTime.now();
     final p = await SharedPreferences.getInstance();
-    await p.setString(_usageKey(_settings.source), jsonEncode(usage.toJson()));
+    await p.setString(_usageKey(_settings), jsonEncode(usage.toJson()));
   }
 
   @override

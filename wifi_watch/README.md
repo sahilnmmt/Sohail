@@ -17,6 +17,10 @@ does, so nothing leaves your home network.
   last 7 days, time online per day and its recent visits.
 - **Daily limits:** set a limit for a device or the whole network; a warning
   shows when it goes over.
+- **Several routers:** add each router on your network (a main TP-Link and a
+  Linksys downstairs, say). Devices from all of them show in one list, each
+  marked with the router it is on. If one router can't be reached, the others
+  keep counting and a warning says which one.
 - **Demo mode:** pretend devices, to try the app without a router.
 
 How it compares with Fing and TP-Link Tether: [COMPETITORS.md](COMPETITORS.md).
@@ -61,6 +65,18 @@ The app starts in **Demo** mode. To use your router:
 - After a wrong password the app stops trying, because routers lock the login
   after a few failures. Fix the password in Settings.
 
+## Linksys (second router)
+Linksys Smart Wi-Fi routers (EA, MR, MX, Velop) are read through JNAP, the
+local interface their own app uses: user `admin` and the router's admin
+password. They list devices and how they connect (band or cable), but **not
+data used per device**; usage for everything behind a Linksys comes from the
+main router (its port counter covers the whole Linksys).
+
+A Linksys in *router* mode answers only on its own network (usually
+`192.168.1.1`): the phone reaches it while on the Linksys Wi-Fi, and still
+reaches the main router through it. In *bridge* mode its devices appear in the
+main router's list anyway, each with its own usage.
+
 ## Supported routers
 TP-Link routers whose web page uses the encrypted `cgi_gdpr` interface: the
 ISP and LTE families (Archer MR, VR, EX, XC, VX and XX models). The app tries
@@ -88,7 +104,9 @@ working version of it to compare against.
 ## How it fits together
 | Part | Where |
 |---|---|
-| Router login and requests (RSA signature, AES-CBC/GCM) | `lib/src/router/tplink_client.dart`, `tplink_crypto.dart` |
+| TP-Link login and requests (RSA signature, AES-CBC/GCM) | `lib/src/router/tplink_client.dart`, `tplink_crypto.dart` |
+| Linksys (JNAP) | `lib/src/router/linksys_client.dart` |
+| Several routers, one list | `lib/src/monitor.dart` (`mergeSnapshots`) |
 | Demo network | `lib/src/router/demo_source.dart` |
 | Devices, visits and daily usage, saved on the phone | `lib/src/usage.dart` |
 | Device type guessing | `lib/src/device_kind.dart` |

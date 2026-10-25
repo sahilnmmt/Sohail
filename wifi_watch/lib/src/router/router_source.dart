@@ -31,6 +31,9 @@ class ClientInfo {
   final int? totalDown;
   final int? totalUp;
 
+  /// The router that reported it, when there are several.
+  final String via;
+
   const ClientInfo({
     required this.mac,
     required this.ip,
@@ -41,7 +44,24 @@ class ClientInfo {
     this.upBps,
     this.totalDown,
     this.totalUp,
+    this.via = '',
   });
+
+  ClientInfo withVia(String router) => ClientInfo(
+        mac: mac,
+        ip: ip,
+        hostname: hostname,
+        vendor: vendor,
+        link: link,
+        downBps: downBps,
+        upBps: upBps,
+        totalDown: totalDown,
+        totalUp: totalUp,
+        via: router,
+      );
+
+  /// Something the router measured: speed or byte counters.
+  bool get hasTraffic => totalDown != null || totalUp != null || downBps != null;
 }
 
 class RouterSnapshot {

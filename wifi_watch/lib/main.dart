@@ -25,9 +25,11 @@ class _WifiWatchAppState extends State<WifiWatchApp> with WidgetsBindingObserver
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    widget.monitor.onVariantFound = (v, user) {
-      final s = _settings?.copyWith(variant: () => v, username: user);
-      if (s == null) return;
+    widget.monitor.onVariantFound = (id, v, user) {
+      final current = _settings;
+      final router = current?.routers.where((r) => r.id == id).firstOrNull;
+      if (current == null || router == null) return;
+      final s = current.withRouter(router.copyWith(variant: () => v, username: user));
       setState(() => _settings = s);
       widget.store.save(s);
     };

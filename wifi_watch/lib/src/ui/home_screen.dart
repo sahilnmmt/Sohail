@@ -89,12 +89,15 @@ class _StatusBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final m = monitor;
+    // Some routers answer, some don't: still working, with a warning.
+    final partial = m.state == MonitorState.ok && m.error != null;
     final (IconData icon, String text, Color bg, Color fg) = switch (m.state) {
       MonitorState.ok => (
-          Icons.router_outlined,
-          '${m.sourceName} · updated ${m.updatedAt == null ? '' : formatAgo(m.updatedAt!, DateTime.now())}',
-          scheme.surfaceContainerHighest,
-          scheme.onSurfaceVariant,
+          partial ? Icons.warning_amber_rounded : Icons.router_outlined,
+          '${m.sourceName} · updated ${m.updatedAt == null ? '' : formatAgo(m.updatedAt!, DateTime.now())}'
+              '${partial ? '\nNot reachable: ${m.error}' : ''}',
+          partial ? scheme.tertiaryContainer : scheme.surfaceContainerHighest,
+          partial ? scheme.onTertiaryContainer : scheme.onSurfaceVariant,
         ),
       MonitorState.error => (Icons.error_outline, m.error ?? 'Error', scheme.errorContainer, scheme.onErrorContainer),
       _ => (Icons.sync, 'Connecting to ${m.sourceName}…', scheme.surfaceContainerHighest, scheme.onSurfaceVariant),
@@ -102,7 +105,7 @@ class _StatusBanner extends StatelessWidget {
     return Material(
       color: bg,
       child: InkWell(
-        onTap: m.state == MonitorState.error ? onOpenSettings : null,
+        onTap: m.state == MonitorState.error || partial ? onOpenSettings : null,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
@@ -305,6 +308,7 @@ class _DevicesTabState extends State<_DevicesTab> {
               live: m.live[d.mac],
               today: today[d.mac],
               overLimit: over.contains(d.mac),
+              showRouter: m.multipleRouters,
               onTap: () => widget.onOpen(d.mac),
             ),
           const SizedBox(height: 16),
@@ -338,9 +342,18 @@ class _DeviceTile extends StatelessWidget {
   final ClientInfo? live;
   final Bytes? today;
   final bool overLimit;
+
+  /// Say which router it is on (when there are several).
+  final bool showRouter;
   final VoidCallback onTap;
-  const _DeviceTile(
-      {required this.device, required this.live, required this.today, required this.overLimit, required this.onTap});
+  const _DeviceTile({
+    required this.device,
+    required this.live,
+    required this.today,
+    required this.overLimit,
+    this.showRouter = false,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -350,6 +363,7 @@ class _DeviceTile extends StatelessWidget {
     final details = <String>[
       if (online) device.ip,
       if (online) linkLabel(device.link) else 'Seen ${formatAgo(device.lastSeen, DateTime.now())}',
+      if (showRouter && device.via.isNotEmpty) device.via,
       if ((today?.total ?? 0) > 0) 'today ${formatBytes(today!.total)}',
     ];
     return ListTile(

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../settings.dart';
 import '../version.dart';
-import 'connection_test_screen.dart';
+import 'router_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   final AppSettings settings;
@@ -16,56 +16,53 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  late SourceKind _source = widget.settings.source;
+  late List<RouterSetup> _routers = [...widget.settings.routers];
   late int _poll = widget.settings.pollSeconds;
-  late final _host = TextEditingController(text: widget.settings.host);
-  late final _user = TextEditingController(text: widget.settings.username);
-  late final _password = TextEditingController(text: widget.settings.password);
   late final _netLimit = TextEditingController(text: widget.settings.networkLimitMb?.toString() ?? '');
-  bool _showPassword = false;
 
-  /// What the connection test found, for that address and password.
-  ({String host, String password, String variant, String user})? _tested;
-
-  AppSettings get _edited {
-    final s = widget.settings.copyWith(
-      source: _source,
-      host: _host.text.trim(),
-      username: _user.text.trim(),
-      password: _password.text,
-      pollSeconds: _poll,
-      networkLimitMb: () {
-        final mb = int.tryParse(_netLimit.text.trim());
-        return mb == null || mb <= 0 ? null : mb;
-      },
-    );
-    final t = _tested;
-    if (t != null && t.host == s.host && t.password == s.password && (s.username.isEmpty || s.username == t.user)) {
-      return s.copyWith(variant: () => t.variant, username: t.user);
-    }
-    // A different router may speak a different protocol: search again.
-    return s.sameRouter(widget.settings) ? s : s.copyWith(variant: () => null);
-  }
+  AppSettings get _edited => widget.settings.copyWith(
+        routers: _routers,
+        pollSeconds: _poll,
+        networkLimitMb: () {
+          final mb = int.tryParse(_netLimit.text.trim());
+          return mb == null || mb <= 0 ? null : mb;
+        },
+      );
 
   Future<void> _save() async {
     await widget.onSave(_edited);
     if (mounted) Navigator.pop(context);
   }
 
-  void _test() {
-    final s = _edited;
-    Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => ConnectionTestScreen(
-        host: s.host,
-        username: s.username,
-        password: s.password,
-        onConnected: (variant, user) {
-          _tested = (host: s.host, password: s.password, variant: variant, user: user);
-          if (mounted) setState(() => _user.text = user);
-        },
+  Future<void> _edit(RouterSetup router, {bool isNew = false}) async {
+    final changed = await Navigator.of(context).push(MaterialPageRoute<RouterSetup>(
+      builder: (_) => RouterScreen(
+        router: router,
+        isNew: isNew,
+        onDelete: _routers.length > 1 ? () => setState(() => _routers.removeWhere((r) => r.id == router.id)) : null,
       ),
     ));
+    if (changed == null || !mounted) return;
+    setState(() {
+      if (isNew) {
+        // Pretend devices don't mix with real ones: a real router replaces
+        // the demo.
+        if (changed.kind != RouterKind.demo) _routers.removeWhere((r) => r.kind == RouterKind.demo);
+        _routers = [..._routers, changed];
+      } else {
+        _routers = [for (final r in _routers) r.id == changed.id ? changed : r];
+      }
+    });
   }
+
+  void _add() => _edit(
+        RouterSetup(
+          id: RouterSetup.newId(),
+          kind: _routers.any((r) => r.kind == RouterKind.tplink) ? RouterKind.linksys : RouterKind.tplink,
+          host: _routers.any((r) => r.kind == RouterKind.tplink) ? '192.168.1.1' : '192.168.0.1',
+        ),
+        isNew: true,
+      );
 
   Future<void> _forget() async {
     final ok = await showDialog<bool>(
@@ -84,18 +81,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   void dispose() {
-    _host.dispose();
-    _user.dispose();
-    _password.dispose();
     _netLimit.dispose();
     super.dispose();
   }
+
+  static IconData _icon(RouterKind k) => switch (k) {
+        RouterKind.demo => Icons.science_outlined,
+        _ => Icons.router_outlined,
+      };
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
-    final router = _source == SourceKind.tplink;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
@@ -104,66 +102,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text('Where devices come from', style: t.titleSmall),
-          const SizedBox(height: 8),
-          SegmentedButton<SourceKind>(
-            segments: const [
-              ButtonSegment(value: SourceKind.tplink, icon: Icon(Icons.router_outlined), label: Text('My router')),
-              ButtonSegment(value: SourceKind.demo, icon: Icon(Icons.science_outlined), label: Text('Demo')),
-            ],
-            selected: {_source},
-            onSelectionChanged: (s) => setState(() => _source = s.single),
-          ),
-          const SizedBox(height: 8),
+          Text('Routers', style: t.titleSmall),
+          const SizedBox(height: 4),
           Text(
-            router
-                ? 'Reads your TP-Link router the way its web page does. The phone must be on your home Wi-Fi.'
-                : 'Pretend devices, to try the app without a router.',
+            'Add each router on your network. Devices from all of them show in one list.',
             style: t.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
           ),
-          if (router) ...[
-            const SizedBox(height: 16),
-            TextField(
-              controller: _host,
-              keyboardType: TextInputType.url,
-              decoration: const InputDecoration(
-                labelText: 'Router address',
-                helperText: 'Usually 192.168.0.1 or 192.168.1.1',
-                border: OutlineInputBorder(),
+          const SizedBox(height: 8),
+          for (final r in _routers)
+            Card(
+              child: ListTile(
+                leading: Icon(_icon(r.kind)),
+                title: Text(r.displayName),
+                subtitle: Text(r.kind == RouterKind.demo ? 'Pretend devices' : '${routerKindLabel(r.kind)} · ${r.host}'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _edit(r),
               ),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _user,
-              decoration: const InputDecoration(
-                labelText: 'User name',
-                hintText: 'Leave empty if the router asks only for a password',
-                helperText: 'Not your TP-Link ID email. Empty tries user, then admin.',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _password,
-              obscureText: !_showPassword,
-              decoration: InputDecoration(
-                labelText: 'Router admin password',
-                helperText: 'The one for the router web page, not the Wi-Fi password.',
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility),
-                  onPressed: () => setState(() => _showPassword = !_showPassword),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: _test,
-              icon: const Icon(Icons.network_check),
-              label: const Text('Test connection'),
-            ),
-          ],
-          const SizedBox(height: 24),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(onPressed: _add, icon: const Icon(Icons.add), label: const Text('Add router')),
+          ),
+          const SizedBox(height: 16),
           Text('Check every', style: t.titleSmall),
           const SizedBox(height: 8),
           SegmentedButton<int>(

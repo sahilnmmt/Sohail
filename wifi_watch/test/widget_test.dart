@@ -7,6 +7,7 @@ import 'package:wifi_watch/src/monitor.dart';
 import 'package:wifi_watch/src/router/demo_source.dart';
 import 'package:wifi_watch/src/settings.dart';
 import 'package:wifi_watch/src/ui/home_screen.dart';
+import 'package:wifi_watch/src/ui/settings_screen.dart';
 
 void main() {
   testWidgets('demo network: devices, usage and a new device', (tester) async {
@@ -62,5 +63,33 @@ void main() {
     expect(find.textContaining('Living-Room-TV'), findsWidgets);
 
     await tester.runAsync(monitor.stop);
+  });
+
+  testWidgets('settings: routers listed, a second one added', (tester) async {
+    AppSettings? saved;
+    await tester.pumpWidget(MaterialApp(
+      home: SettingsScreen(
+        settings: const AppSettings(routers: [
+          RouterSetup(id: 'a', name: 'Upstairs', kind: RouterKind.tplink, host: '192.168.0.1'),
+        ]),
+        onSave: (s) async => saved = s,
+        onForgetHistory: () async {},
+      ),
+    ));
+    expect(find.text('Upstairs'), findsOneWidget);
+    expect(find.text('TP-Link · 192.168.0.1'), findsOneWidget);
+
+    await tester.tap(find.text('Add router'));
+    await tester.pumpAndSettle();
+    expect(find.text('Add router'), findsOneWidget); // the new screen's title
+    await tester.enterText(find.widgetWithText(TextField, 'Name'), 'Downstairs');
+    await tester.tap(find.text('DONE'));
+    await tester.pumpAndSettle();
+    expect(find.text('Downstairs'), findsOneWidget);
+    expect(find.text('Linksys · 192.168.1.1'), findsOneWidget);
+
+    await tester.tap(find.text('SAVE'));
+    await tester.pumpAndSettle();
+    expect(saved!.routers.map((r) => r.displayName), ['Upstairs', 'Downstairs']);
   });
 }

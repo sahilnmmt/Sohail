@@ -1,29 +1,41 @@
 // Tries the router step by step and shows what happened, so a problem can be
 // copied and sent for help. The password never appears in the log.
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../format.dart';
+import '../router/linksys_client.dart';
 import '../router/tplink_client.dart';
+import '../settings.dart';
 import '../version.dart';
 
 class ConnectionTestScreen extends StatefulWidget {
   final String host;
   final String username;
   final String password;
+  final RouterKind kind;
 
-  /// Called with the login method and user name that worked.
+  /// Called with the login method and user name that worked (TP-Link).
   final void Function(String variant, String user)? onConnected;
 
-  const ConnectionTestScreen(
-      {super.key, required this.host, required this.username, required this.password, this.onConnected});
+  const ConnectionTestScreen({
+    super.key,
+    required this.host,
+    required this.username,
+    required this.password,
+    this.kind = RouterKind.tplink,
+    this.onConnected,
+  });
 
   @override
   State<ConnectionTestScreen> createState() => _ConnectionTestScreenState();
 }
 
 class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
-  late final List<String> _lines = ['WiFi Watch build $appBuild, connection test, router ${widget.host}, user "${widget.username.trim().isEmpty ? '(automatic)' : widget.username}"'];
+  late final List<String> _lines = ['WiFi Watch build $appBuild, connection test, ${routerKindLabel(widget.kind)} router ${widget.host}, user "${widget.username.trim().isEmpty ? '(automatic)' : widget.username}"'];
   bool _running = true;
   bool? _ok;
 
@@ -44,7 +56,33 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
     setState(() => _lines.add(pw.isEmpty ? line : line.replaceAll(pw, '***')));
   }
 
+  Future<void> _runLinksys() async {
+    final client = LinksysClient(host: widget.host, username: widget.username, password: widget.password, log: _log);
+    try {
+      await client.connect();
+      final snap = await client.fetch();
+      _log('Devices online: ${snap.clients.length}');
+      for (final c in snap.clients) {
+        _log('  ${c.hostname.isEmpty ? '(no name)' : c.hostname} ${c.ip} ${c.link.name}'
+            '${c.vendor.isEmpty ? '' : ' (${c.vendor})'}');
+      }
+      _log('Linksys routers do not report data used per device: usage comes from the main router.');
+      _ok = true;
+    } catch (e) {
+      _log('FAILED: $e');
+      if (e is SocketException || e is TimeoutException) {
+        _log('Could not reach ${widget.host}. A Linksys in router mode answers only on its own network: '
+            'connect the phone to its Wi-Fi, or use its address as the main router sees it.');
+      }
+      _ok = false;
+    } finally {
+      await client.close();
+      if (mounted) setState(() => _running = false);
+    }
+  }
+
   Future<void> _run() async {
+    if (widget.kind == RouterKind.linksys) return _runLinksys();
     final client = TplinkClient(host: widget.host, username: widget.username, password: widget.password, log: _log);
     try {
       await client.connect();

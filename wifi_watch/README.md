@@ -33,8 +33,11 @@ Actions run also keeps the APK as the `wifi-watch-apk` artifact.
 The app starts in **Demo** mode. To use your router:
 1. Connect the phone to your home Wi-Fi.
 2. **Settings** (gear icon) → **My router**.
-3. Router address `192.168.0.1`, user name `admin`, and the router's **admin
-   password** (the one for its web page, not the Wi-Fi password).
+3. Router address `192.168.0.1` and the router's **admin password** (the one
+   for its web page, not the Wi-Fi password). If the router's login page asks
+   only for a password, leave the user name empty: the app tries `user`, then
+   `admin`, and remembers the one that works. Never your TP-Link ID email:
+   that login goes through TP-Link's cloud and gives the app no session.
 4. Tap **Test connection**. It logs every step; the copy button copies the log
    (the password is never in it) so you can send it for help.
 5. **Save**.
@@ -69,7 +72,8 @@ The protocol details come from the open-source
 library (GPL-3.0). The `mr-gcm` login is a best guess: the library has no
 working version of it to compare against.
 
-**Archer XX530v:** not yet tried on the real router. Run **Test connection**
+**Archer XX530v:** logs in with `ex-cbc` (password-only page). Not yet
+confirmed end to end. Run **Test connection**
 on your home Wi-Fi and send the log: it lists every per-device field the
 router reports, so traffic for this model can be added.
 

@@ -20,7 +20,7 @@ class AppSettings {
   const AppSettings({
     this.source = SourceKind.demo,
     this.host = '192.168.0.1',
-    this.username = 'admin',
+    this.username = '',
     this.password = '',
     this.variant,
     this.pollSeconds = 10,

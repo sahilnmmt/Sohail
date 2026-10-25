@@ -122,7 +122,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               controller: _user,
               decoration: const InputDecoration(
                 labelText: 'User name',
-                helperText: 'Usually admin (some ISP routers: user). Not your TP-Link ID email.',
+                hintText: 'Leave empty if the router asks only for a password',
+                helperText: 'Not your TP-Link ID email. Empty tries user, then admin.',
                 border: OutlineInputBorder(),
               ),
             ),

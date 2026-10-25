@@ -93,6 +93,43 @@ void main() {
     });
   }
 
+  group('password-only routers (empty user name)', () {
+    const ex = TpVariant(TpProtocol.ex, TpCipher.cbc);
+
+    test('logs in as "user"', () async {
+      final router = FakeTplinkRouter(variant: ex, username: 'user', hosts: _hosts);
+      await router.start();
+      final client = TplinkClient(host: router.address, username: '', password: 'secret');
+      expect((await client.fetch()).clients, hasLength(2));
+      expect(client.user, 'user');
+      expect(router.failedLogins, 0);
+      await client.close();
+      await router.stop();
+    });
+
+    test('falls back to "admin" after one refused login', () async {
+      final router = FakeTplinkRouter(variant: ex, username: 'admin', hosts: _hosts);
+      await router.start();
+      final client = TplinkClient(host: router.address, username: '', password: 'secret');
+      expect((await client.fetch()).clients, hasLength(2));
+      expect(client.user, 'admin');
+      expect(router.failedLogins, 1);
+      await client.close();
+      await router.stop();
+    });
+
+    test('a wrong password stops after one try per name', () async {
+      final router = FakeTplinkRouter(variant: ex, username: 'user', hosts: _hosts);
+      await router.start();
+      final client = TplinkClient(host: router.address, username: '', password: 'wrong');
+      await expectLater(
+          client.connect(), throwsA(isA<RouterException>().having((e) => e.wrongPassword, 'wrongPassword', isTrue)));
+      expect(router.failedLogins, 2);
+      await client.close();
+      await router.stop();
+    });
+  });
+
   test('findToken ignores variable names', () {
     expect(TplinkClient.findToken('var token="abc123";'), 'abc123');
     expect(TplinkClient.findToken("var token = 'abc123';"), 'abc123');

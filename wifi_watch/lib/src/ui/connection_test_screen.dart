@@ -18,7 +18,7 @@ class ConnectionTestScreen extends StatefulWidget {
 }
 
 class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
-  late final List<String> _lines = ['WiFi Watch build $appBuild, connection test, router ${widget.host}, user "${widget.username}"'];
+  late final List<String> _lines = ['WiFi Watch build $appBuild, connection test, router ${widget.host}, user "${widget.username.trim().isEmpty ? '(automatic)' : widget.username}"'];
   bool _running = true;
   bool? _ok;
 

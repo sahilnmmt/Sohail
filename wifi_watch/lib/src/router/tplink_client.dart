@@ -71,7 +71,13 @@ class TplinkClient implements RouterSource {
   static const _userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:90.0) Gecko/20100101 Firefox/90.0';
 
   final String host;
+  /// Empty for routers whose login page asks only for a password: they log
+  /// in with a fixed user name, tried in [autoUsers] order.
   final String username;
+  static const autoUsers = ['user', 'admin'];
+
+  /// The user name that worked.
+  String? user;
   final String password;
   final Duration timeout;
 
@@ -156,6 +162,22 @@ class TplinkClient implements RouterSource {
   }
 
   Future<void> _login(TpVariant v) async {
+    final names = username.trim().isEmpty ? autoUsers : [username.trim()];
+    for (final (i, name) in names.indexed) {
+      try {
+        await _loginAs(v, name);
+        user = name;
+        return;
+      } on RouterException catch (e) {
+        // A wrong user name looks like a wrong password; one failed attempt
+        // per name is safe. Stop at the last.
+        if (i == names.length - 1) rethrow;
+        log?.call('As "$name": ${e.message}');
+      }
+    }
+  }
+
+  Future<void> _loginAs(TpVariant v, String username) async {
     log?.call('Trying $v as "$username"');
     _cookies.clear();
     _token = null;

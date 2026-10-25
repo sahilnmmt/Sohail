@@ -21,7 +21,7 @@ class Monitor extends ChangeNotifier {
   final RouterSource Function(AppSettings) _makeSource;
 
   /// Called when a TP-Link router's protocol variant is found, to remember it.
-  void Function(String variant)? onVariantFound;
+  void Function(String variant, String user)? onVariantFound;
 
   AppSettings _settings = const AppSettings();
   RouterSource? _source;
@@ -116,9 +116,13 @@ class Monitor extends ChangeNotifier {
       state = MonitorState.ok;
       error = null;
       sourceName = source.name;
-      if (source is TplinkClient && source.variant != null && source.variant!.id != _settings.variant) {
-        _settings = _settings.copyWith(variant: () => source.variant!.id);
-        onVariantFound?.call(source.variant!.id);
+      if (source is TplinkClient &&
+          source.variant != null &&
+          (source.variant!.id != _settings.variant || _settings.username.trim().isEmpty)) {
+        // Remember the user name too, so an automatic search does not cost a
+        // failed login every time.
+        _settings = _settings.copyWith(variant: () => source.variant!.id, username: source.user);
+        onVariantFound?.call(source.variant!.id, source.user ?? _settings.username);
       }
       if (snap.at.difference(_lastSave) > _saveEvery) await save();
     } catch (e) {

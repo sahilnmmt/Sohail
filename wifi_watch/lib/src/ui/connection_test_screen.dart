@@ -71,7 +71,8 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
     } catch (e) {
       _log('FAILED: $e');
       if (e is RouterException && !e.wrongPassword) {
-        _log('This Linksys has no Smart Wi-Fi (JNAP) interface. About its web page:');
+        _log('No Linksys Smart Wi-Fi (JNAP) interface at ${widget.host}: another device may be at this address. '
+            'Check the LAN IP Address in the Linksys app (tap the router). About the web page here:');
         await client.describeWebPage();
       }
       if (e is SocketException || e is TimeoutException) {

@@ -142,7 +142,7 @@ class _RouterScreenState extends State<RouterScreen> {
               decoration: InputDecoration(
                 labelText: 'Router address',
                 helperText: _kind == RouterKind.linksys
-                    ? 'Usually 192.168.1.1 (myrouter.local)'
+                    ? 'In the Linksys app: tap the router, LAN IP Address (e.g. 10.18.1.1, 192.168.1.1)'
                     : 'Usually 192.168.0.1 or 192.168.1.1',
                 border: const OutlineInputBorder(),
               ),

@@ -72,8 +72,8 @@ password. They list devices and how they connect (band or cable), but **not
 data used per device**; usage for everything behind a Linksys comes from the
 main router (its port counter covers the whole Linksys).
 
-A Linksys in *router* mode answers only on its own network (usually
-`192.168.1.1`): the phone reaches it while on the Linksys Wi-Fi, and still
+A Linksys in *router* mode answers only on its own network, at its LAN IP
+(the Linksys app shows it under the router, e.g. `10.18.1.1` for an MX5500): the phone reaches it while on the Linksys Wi-Fi, and still
 reaches the main router through it. In *bridge* mode its devices appear in the
 main router's list anyway, each with its own usage.
 

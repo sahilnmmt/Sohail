@@ -29,11 +29,23 @@ android {
         versionName = flutter.versionName
     }
 
+    // CI signs every build with one kept key (WIFI_WATCH_KEYSTORE), so a new
+    // build installs over the last. Without it, the local debug key.
+    val keystore = System.getenv("WIFI_WATCH_KEYSTORE")?.let { file(it) }?.takeIf { it.exists() }
+    signingConfigs {
+        if (keystore != null) {
+            create("kept") {
+                storeFile = keystore
+                storePassword = "wifiwatch"
+                keyAlias = "wifiwatch"
+                keyPassword = "wifiwatch"
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName(if (keystore != null) "kept" else "debug")
         }
     }
 }

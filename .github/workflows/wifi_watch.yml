@@ -41,17 +41,29 @@ jobs:
       - name: Test
         run: flutter test -r expanded
 
-      # The APK is signed with the debug key Gradle makes when there is none.
-      # A new key each run would stop Android installing one build over
-      # another ("package conflicts"), so keep the key between runs. Not for
-      # pull requests, whose code must not see it. Caches unused for 7 days
-      # are dropped; the next build then needs one uninstall.
+      # Every build is signed with one key, kept in the Actions cache, so
+      # Android installs a new build over the last ("package conflicts"
+      # otherwise). Made on the first run. Not for pull requests, whose code
+      # must not see it. Caches unused for 7 days are dropped; the next build
+      # then makes a new key and needs one uninstall.
       - name: Keep the signing key
         if: github.event_name != 'pull_request'
         uses: actions/cache@v4
         with:
-          path: ~/.android/debug.keystore
-          key: wifi-watch-signing-key-v1
+          path: ~/wifi-watch-key/release.jks
+          key: wifi-watch-signing-key-v2
+
+      - name: Make the signing key if there is none
+        if: github.event_name != 'pull_request'
+        run: |
+          mkdir -p ~/wifi-watch-key
+          if [ ! -f ~/wifi-watch-key/release.jks ]; then
+            keytool -genkeypair -keystore ~/wifi-watch-key/release.jks -storetype JKS \
+              -storepass wifiwatch -keypass wifiwatch -alias wifiwatch \
+              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=WiFi Watch"
+          fi
+          echo "WIFI_WATCH_KEYSTORE=$HOME/wifi-watch-key/release.jks" >> "$GITHUB_ENV"
+          keytool -list -v -keystore ~/wifi-watch-key/release.jks -storepass wifiwatch | grep -m1 SHA256
 
       - name: Build release APK
         run: flutter build apk --release --dart-define=BUILD=${GITHUB_SHA::7}

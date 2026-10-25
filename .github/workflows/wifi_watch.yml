@@ -37,6 +37,18 @@ jobs:
       - name: Test
         run: flutter test -r expanded
 
+      # The APK is signed with the debug key Gradle makes when there is none.
+      # A new key each run would stop Android installing one build over
+      # another ("package conflicts"), so keep the key between runs. Not for
+      # pull requests, whose code must not see it. Caches unused for 7 days
+      # are dropped; the next build then needs one uninstall.
+      - name: Keep the signing key
+        if: github.event_name != 'pull_request'
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: wifi-watch-signing-key-v1
+
       - name: Build release APK
         run: flutter build apk --release --dart-define=BUILD=${GITHUB_SHA::7}
 

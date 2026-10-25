@@ -29,6 +29,11 @@ and open the downloaded file. Android asks you to allow installing apps from
 your browser the first time. CI updates that link after every push. Each
 Actions run also keeps the APK as the `wifi-watch-apk` artifact.
 
+Each build is signed with the same key, kept in the Actions cache, so a new
+build installs over the old one. If Android says *"package conflicts with an
+existing package"*, the key changed (GitHub drops a cache unused for 7 days):
+uninstall WiFi Watch once and install again. Settings and history are lost.
+
 ## First run
 The app starts in **Demo** mode. To use your router:
 1. Connect the phone to your home Wi-Fi.

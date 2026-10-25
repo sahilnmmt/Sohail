@@ -368,7 +368,7 @@ class TplinkClient implements RouterSource {
       // own Ethernet port. Bytes the router sends a device are its download.
       var totalDown = num('totalBytesRx') ?? num('wifiBytesDown') ?? num('portBytesDown');
       final totalUp = num('totalBytesTx') ?? num('wifiBytesUp') ?? num('portBytesUp');
-      // Older firmware counts both directions together.
+      // Some statistics count both directions together; shown as download.
       totalDown ??= totalUp == null ? num('totalBytes') : null;
       var downBps = num('currBytesRx')?.toDouble();
       var upBps = num('currBytesTx')?.toDouble();
@@ -413,14 +413,14 @@ class TplinkClient implements RouterSource {
 
     if (_exStatsSupported) {
       try {
+        // The XX530v gives the IP as a number and counts both directions
+        // in one totalBytes. Kept under both keys: the MAC here can differ
+        // from the device list's (a router reports its other port).
         for (final r in (await _query([_Act.gl('DEV2_STAT_ENTRY')]))[0]) {
           final mac = macOf(r);
-          final ip = r['ipAddress'] ?? r['IPAddress'];
-          if (mac != null) {
-            out[normalizeMac(mac)] = r;
-          } else if (ip != null) {
-            out['ip:$ip'] = r;
-          }
+          final ip = ipFromStat(r['ipAddress'] ?? r['IPAddress'] ?? '');
+          if (mac != null) out[normalizeMac(mac)] = {...?out[normalizeMac(mac)], ...r};
+          if (ip != null) out['ip:$ip'] = {...?out['ip:$ip'], ...r};
         }
       } catch (e) {
         _exStatsSupported = false;
@@ -494,6 +494,14 @@ class TplinkClient implements RouterSource {
       }
     }
     return out;
+  }
+
+  /// `3232235522` or `192.168.0.2` -> `192.168.0.2`.
+  static String? ipFromStat(String v) {
+    if (v.contains('.')) return v;
+    final n = int.tryParse(v);
+    if (n == null || n < 0 || n > 0xFFFFFFFF) return null;
+    return [24, 16, 8, 0].map((s) => (n >> s) & 0xFF).join('.');
   }
 
   /// `Device.Ethernet.Interface.3.` -> 3.

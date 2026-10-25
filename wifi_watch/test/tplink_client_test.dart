@@ -177,8 +177,11 @@ void main() {
     await router.stop();
   });
 
-  test('EX: turning on traffic statistics makes them the source', () async {
-    final router = FakeTplinkRouter(variant: const TpVariant(TpProtocol.ex, TpCipher.cbc), hosts: _hosts);
+  test('EX: traffic statistics count devices nothing else counts', () async {
+    final router = FakeTplinkRouter(variant: const TpVariant(TpProtocol.ex, TpCipher.cbc), hosts: [
+      ..._hosts.take(2),
+      const FakeHost('DC:A6:32:66:1D:05', '192.168.0.105', 'Tablet', 1, statBytes: 168774),
+    ]);
     await router.start();
     final client = TplinkClient(host: router.address, username: 'admin', password: 'secret');
     await client.connect();
@@ -186,10 +189,17 @@ void main() {
     await client.setTrafficStats(true);
     expect(router.statsOn, isTrue);
     expect(await client.trafficStatsEnabled(), isTrue);
-    // Matched by IP address; the fake adds 1 so the source is visible.
-    expect((await client.fetch()).clients.map((c) => c.totalDown), [5001, 90001]);
+    // Direction-aware counters stay first; the tablet has only statistics,
+    // matched by its IP (given as a number).
+    expect((await client.fetch()).clients.map((c) => c.totalDown), [5000, 90000, 168774]);
     await client.close();
     await router.stop();
+  });
+
+  test('ipFromStat', () {
+    expect(TplinkClient.ipFromStat('3232235522'), '192.168.0.2');
+    expect(TplinkClient.ipFromStat('192.168.0.9'), '192.168.0.9');
+    expect(TplinkClient.ipFromStat('x'), isNull);
   });
 
   test('ethernetPort', () {

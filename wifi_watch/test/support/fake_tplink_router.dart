@@ -24,8 +24,11 @@ class FakeHost {
   final int connType;
   final bool active;
   final int? totalRx, totalTx, currRx, currTx;
+
+  /// Both directions, in EX traffic statistics once they are on.
+  final int? statBytes;
   const FakeHost(this.mac, this.ip, this.name, this.connType,
-      {this.active = true, this.totalRx, this.totalTx, this.currRx, this.currTx});
+      {this.active = true, this.totalRx, this.totalTx, this.currRx, this.currTx, this.statBytes});
 }
 
 class FakeTplinkRouter {
@@ -289,10 +292,18 @@ class FakeTplinkRouter {
           {'bytesSent': '${h.totalRx ?? 0}', 'bytesReceived': '${h.totalTx ?? 0}', 'stack': '${i + 1},0,0,0,0,0'},
       ],
       'DEV2_STAT_CFG' => {'enable': statsOn ? '1' : '0', 'interval': '10', 'action': '0'},
+      // Like the XX530v: IP as a number, one total for both directions.
       'DEV2_STAT_ENTRY' => [
         if (statsOn)
           for (final h in hosts)
-            {'ipAddress': h.ip, 'totalBytesRx': '${(h.totalRx ?? 0) + 1}', 'totalBytesTx': '${(h.totalTx ?? 0) + 1}'},
+            if (h.statBytes != null)
+              {
+                'ipAddress': '${h.ip.split('.').fold(0, (n, p) => n * 256 + int.parse(p))}',
+                'macAddress': 'E8:9F:80:96:CC:39',
+                'totalPkts': '400',
+                'totalBytes': '${h.statBytes}',
+                'currBytes': '1000',
+              },
       ],
       '/cgi/logout' => null,
       _ => throw StateError('unknown oid $oid'),

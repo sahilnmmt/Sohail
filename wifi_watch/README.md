@@ -77,10 +77,13 @@ The protocol details come from the open-source
 library (GPL-3.0). The `mr-gcm` login is a best guess: the library has no
 working version of it to compare against.
 
-**Archer XX530v:** logs in with `ex-cbc` (password-only page). Not yet
-confirmed end to end. Run **Test connection**
-on your home Wi-Fi and send the log: it lists every per-device field the
-router reports, so traffic for this model can be added.
+**Archer XX530v** (tested, firmware Build 250606): logs in with `ex-cbc` as
+`user` (password-only page). Usage per device comes from:
+- Wi-Fi clients: the access point's client counters (`DEV2_WIFI_APDEV_*`).
+- A wired device alone on its port: that Ethernet port's counters. A second
+  router in router mode is one device, so this is all the traffic behind it.
+- Anything else: the router's Traffic Statistics, once turned on (the
+  connection test has a button). They count both directions in one number.
 
 ## How it fits together
 | Part | Where |

@@ -145,6 +145,18 @@ void main() {
     await router.stop();
   });
 
+  test('a slow first answer does not rule the login method out', () async {
+    final router = FakeTplinkRouter(variant: const TpVariant(TpProtocol.ex, TpCipher.cbc), hosts: _hosts)
+      ..slowFirstKey = const Duration(seconds: 2);
+    await router.start();
+    final client = TplinkClient(
+        host: router.address, username: 'admin', password: 'secret', timeout: const Duration(milliseconds: 500));
+    expect((await client.fetch()).clients, hasLength(2));
+    expect(client.variant?.id, 'ex-cbc');
+    await client.close();
+    await router.stop();
+  });
+
   test('findToken ignores variable names', () {
     expect(TplinkClient.findToken('var token="abc123";'), 'abc123');
     expect(TplinkClient.findToken("var token = 'abc123';"), 'abc123');

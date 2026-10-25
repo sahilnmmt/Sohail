@@ -28,10 +28,10 @@ class TpVariant {
     return null;
   }
 
-  /// In the order they are tried. Newer ISP firmware first.
+  /// In the order they are tried. ISP firmware (the XX530v is ex-cbc) first.
   static const all = [
-    TpVariant(TpProtocol.ex, TpCipher.gcm),
     TpVariant(TpProtocol.ex, TpCipher.cbc),
+    TpVariant(TpProtocol.ex, TpCipher.gcm),
     TpVariant(TpProtocol.vr, TpCipher.cbc),
     TpVariant(TpProtocol.mr, TpCipher.gcm),
     TpVariant(TpProtocol.mr, TpCipher.cbc),
@@ -149,15 +149,19 @@ class TplinkClient implements RouterSource {
     throw RouterException('Could not log in with any known method.\n${errors.join('\n')}');
   }
 
+  /// False only when the router answered without a key. A router that is
+  /// slow to answer may still have one, so an error counts as maybe.
   Future<bool> _probeKey(String path) async {
-    try {
-      final (code, body) = await _send('POST', _url(path));
-      final ok = code == 200 && body.contains('var nn=');
-      log?.call('$path: HTTP $code, ${ok ? 'login key found' : 'no login key'}');
-      return ok;
-    } catch (e) {
-      log?.call('$path: $e');
-      return false;
+    for (var attempt = 1;; attempt++) {
+      try {
+        final (code, body) = await _send('POST', _url(path));
+        final ok = code == 200 && body.contains('var nn=');
+        log?.call('$path: HTTP $code, ${ok ? 'login key found' : 'no login key'}');
+        return ok;
+      } catch (e) {
+        log?.call('$path: $e');
+        if (attempt == 2) return true;
+      }
     }
   }
 
@@ -236,8 +240,8 @@ class TplinkClient implements RouterSource {
       final loginPage = RegExp(r'var\s+token\s*;').hasMatch(page) || page.contains('getBindStatus');
       log?.call('No session token found. Start page (HTTP $code): ${describePage(page)}');
       if (loginPage) {
-        log?.call('This looks like the login page: the router did not keep the session. '
-            'Check the user name: use the router\'s local login (admin or user), not a TP-Link ID email.');
+        log?.call('This is the login page: the router did not keep the session. Usually the wrong login '
+            'method for this router; otherwise the user name (use the local login, not a TP-Link ID email).');
       }
     }
     // Check the token with a real request. Some firmware checks only the

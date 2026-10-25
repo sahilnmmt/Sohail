@@ -39,6 +39,10 @@ class FakeTplinkRouter {
   List<FakeHost> hosts;
   final int seq = 581063244;
 
+  /// The first login key request takes this long, like a busy router.
+  Duration slowFirstKey = Duration.zero;
+  bool _keyAsked = false;
+
   /// How many logins were refused, like the router's lockout counter.
   int failedLogins = 0;
   int logins = 0;
@@ -87,7 +91,11 @@ class FakeTplinkRouter {
       return;
     }
     try {
-      if (path == _keyPath && req.method == 'POST') {
+      if (path == _keyPath && req.method == 'POST' && !_keyAsked && slowFirstKey > Duration.zero) {
+        _keyAsked = true;
+        await Future<void>.delayed(slowFirstKey);
+        res.write('too late');
+      } else if (path == _keyPath && req.method == 'POST') {
         res.write('var ee="$testEe";\nvar nn="$testNn";\nvar seq="$seq";\n\$.ret=0;\n');
       } else if (path == '/' && req.method == 'GET') {
         final sessionOk = _session != null && req.cookies.any((c) => c.name == 'JSESSIONID' && c.value == _session);

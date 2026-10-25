@@ -11,7 +11,12 @@ class ConnectionTestScreen extends StatefulWidget {
   final String host;
   final String username;
   final String password;
-  const ConnectionTestScreen({super.key, required this.host, required this.username, required this.password});
+
+  /// Called with the login method and user name that worked.
+  final void Function(String variant, String user)? onConnected;
+
+  const ConnectionTestScreen(
+      {super.key, required this.host, required this.username, required this.password, this.onConnected});
 
   @override
   State<ConnectionTestScreen> createState() => _ConnectionTestScreenState();
@@ -51,6 +56,8 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
           ? 'Per-device traffic: yes'
           : 'Per-device traffic: not found. Device list works; send this log to add usage for this model.');
       _ok = true;
+      widget.onConnected?.call(client.variant!.id, client.user ?? widget.username);
+      _log('Works: ${client.variant} as "${client.user}". Go back and tap SAVE to keep it.');
     } catch (e) {
       _log('FAILED: $e');
       _ok = false;

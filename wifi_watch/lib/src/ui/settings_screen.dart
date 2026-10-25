@@ -24,6 +24,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final _netLimit = TextEditingController(text: widget.settings.networkLimitMb?.toString() ?? '');
   bool _showPassword = false;
 
+  /// What the connection test found, for that address and password.
+  ({String host, String password, String variant, String user})? _tested;
+
   AppSettings get _edited {
     final s = widget.settings.copyWith(
       source: _source,
@@ -36,6 +39,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return mb == null || mb <= 0 ? null : mb;
       },
     );
+    final t = _tested;
+    if (t != null && t.host == s.host && t.password == s.password && (s.username.isEmpty || s.username == t.user)) {
+      return s.copyWith(variant: () => t.variant, username: t.user);
+    }
     // A different router may speak a different protocol: search again.
     return s.sameRouter(widget.settings) ? s : s.copyWith(variant: () => null);
   }
@@ -48,7 +55,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _test() {
     final s = _edited;
     Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => ConnectionTestScreen(host: s.host, username: s.username, password: s.password),
+      builder: (_) => ConnectionTestScreen(
+        host: s.host,
+        username: s.username,
+        password: s.password,
+        onConnected: (variant, user) {
+          _tested = (host: s.host, password: s.password, variant: variant, user: user);
+          if (mounted) setState(() => _user.text = user);
+        },
+      ),
     ));
   }
 

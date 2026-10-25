@@ -15,5 +15,6 @@ and friends.
 - [`app/`](app/README.md): Android companion app (Flutter). Sets up robots over Bluetooth and sends messages. CI builds the APK.
 - [`web/`](web/README.md): accounts website on Firebase (sign-in, families, invites, roles, robot registration).
 - [`video_editor/`](video_editor/README.md): standalone Android app to merge, trim and rotate videos. CI builds the APK.
+- [`desktop/`](desktop/README.md): Video Merger for Windows (window + command line for automation, subtitles from speech). CI builds the `.exe`.
 - [`tools/sohail_cli.py`](tools/sohail_cli.py): command-line client for testing.
 - [`server/`](server/docker-compose.yml): local Mosquitto broker for development.

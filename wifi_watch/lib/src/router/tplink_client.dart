@@ -68,6 +68,7 @@ class TplinkClient implements RouterSource {
   static const _okRet = 0;
   static const _wrongPasswordRet = 71233;
   static const _zeroStack = '0,0,0,0,0,0';
+  static const _userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:90.0) Gecko/20100101 Firefox/90.0';
 
   final String host;
   final String username;
@@ -197,6 +198,7 @@ class TplinkClient implements RouterSource {
     }
 
     final ret = _retCode(reply);
+    log?.call('Login reply code: ${ret ?? 'none'}, cookies: ${_cookies.keys.join(', ')}');
     if (ret == _wrongPasswordRet) {
       throw RouterException('The router says the user name or password is wrong.', wrongPassword: true);
     }
@@ -207,6 +209,7 @@ class TplinkClient implements RouterSource {
     final (code, page) = await _send('GET', _url(''));
     final token = RegExp(r'var token="([^"]*)";').firstMatch(page)?.group(1);
     if (code != 200 || token == null || token.isEmpty) {
+      log?.call('Start page: ${describePage(page)}');
       throw RouterException('Logged in, but the router sent no session token (HTTP $code)');
     }
     _token = token;
@@ -403,6 +406,22 @@ class TplinkClient implements RouterSource {
     ];
   }
 
+  /// What the router's start page looks like, for the connection test, with
+  /// anything after "token" hidden.
+  static String describePage(String page) {
+    final title = RegExp(r'<title>([^<]*)</title>', caseSensitive: false).firstMatch(page)?.group(1)?.trim();
+    final hints = [
+      for (final m in RegExp(r'[^\n;]*token[^\n;]*', caseSensitive: false).allMatches(page).take(5))
+        m.group(0)!.trim().replaceAllMapped(RegExp(r'''(token\W{0,4})[^\s"']{4,}''', caseSensitive: false), (t) => '${t[1]}***'),
+    ];
+    final scripts = [
+      for (final m in RegExp(r'<script[^>]*src="([^"]+)"', caseSensitive: false).allMatches(page).take(8)) m.group(1)!,
+    ];
+    return '${page.length} characters, title "${title ?? ''}"'
+        '${hints.isEmpty ? ', no "token" text' : ', token lines: ${hints.join(' | ')}'}'
+        '${scripts.isEmpty ? '' : ', scripts: ${scripts.join(' ')}'}';
+  }
+
   static int? _retCode(String text) => int.tryParse(RegExp(r'\$\.ret=(\d+);').firstMatch(text)?.group(1) ?? '');
 
   String _sign(String data, {required bool isLogin}) => _crypto!.signature(
@@ -437,15 +456,17 @@ class TplinkClient implements RouterSource {
       final req = await _http.openUrl(method, Uri.parse(url)).timeout(timeout);
       req.followRedirects = false;
       req.headers.set(HttpHeaders.acceptHeader, '*/*');
+      req.headers.set(HttpHeaders.userAgentHeader, _userAgent);
       req.headers.set(HttpHeaders.refererHeader, '$host/');
       if (_token != null) req.headers.set('TokenID', _token!);
       if (_cookies.isNotEmpty) {
         req.headers.set(HttpHeaders.cookieHeader, _cookies.entries.map((e) => '${e.key}=${e.value}').join('; '));
       }
-      if (body != null) {
-        req.headers.contentType = ContentType('text', 'plain', charset: 'utf-8');
-        req.write(body);
-      }
+      // Always with a length: router web servers drop the connection on a
+      // chunked body, which is what HttpClient sends otherwise.
+      final bytes = utf8.encode(body ?? '');
+      req.contentLength = bytes.length;
+      if (bytes.isNotEmpty) req.add(bytes);
       final res = await req.close().timeout(timeout);
       for (final c in res.headers[HttpHeaders.setCookieHeader] ?? const <String>[]) {
         final pair = c.split(';').first;

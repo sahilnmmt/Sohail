@@ -73,6 +73,13 @@ class FakeTplinkRouter {
     final path = req.uri.path;
     requests.add('${req.method} $path');
     final res = req.response;
+    // Like the routers' small web servers: no chunked bodies, no Dart agent.
+    if (req.method == 'POST' && req.headers.contentLength < 0 ||
+        (req.headers.value(HttpHeaders.userAgentHeader) ?? '').startsWith('Dart')) {
+      final socket = await res.detachSocket(writeHeaders: false);
+      socket.destroy();
+      return;
+    }
     try {
       if (path == _keyPath && req.method == 'POST') {
         res.write('var ee="$testEe";\nvar nn="$testNn";\nvar seq="$seq";\n\$.ret=0;\n');

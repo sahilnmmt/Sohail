@@ -257,6 +257,16 @@ class FakeTplinkRouter {
             },
         ],
       'DEV2_DEV_INFO' => {'modelName': model, 'hardwareVersion': '$model v1', 'softwareVersion': '1.1.0'},
+      // Wi-Fi association counters, each Stats object at its device's stack.
+      'DEV2_WIFI_ASSOC_DEV' => [
+        for (final (i, h) in hosts.indexed)
+          if (h.connType != 0 && h.totalRx != null) {'MACAddress': h.mac, 'stack': '1,${i + 1},0,0,0,0'},
+      ],
+      'DEV2_WIFI_ASSOC_DEV_STAT' => [
+        for (final (i, h) in hosts.indexed.toList().reversed)
+          if (h.connType != 0 && h.totalRx != null)
+            {'bytesSent': '${h.totalRx}', 'bytesReceived': '${h.totalTx}', 'stack': '1,${i + 1},0,0,0,0'},
+      ],
       '/cgi/logout' => null,
       _ => throw StateError('unknown oid $oid'),
     };

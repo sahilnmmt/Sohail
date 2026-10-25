@@ -93,6 +93,12 @@ class TplinkClient implements RouterSource {
   String? _nn, _ee, _hash, _token;
   int _seq = 0;
   bool _statsSupported = true;
+  bool _exStatsSupported = true;
+  bool _exAssocSupported = true;
+
+  /// Last byte counters per MAC, to work out speed when the router reports
+  /// only totals.
+  final Map<String, (DateTime, int?, int?)> _lastCounters = {};
 
   TplinkClient({
     required String host,
@@ -329,8 +335,9 @@ class TplinkClient implements RouterSource {
   Future<RouterSnapshot> _fetchClients() async {
     final ex = variant!.protocol == TpProtocol.ex;
     final rows = (await _query([_hostsAct()]))[0];
+    final now = DateTime.now();
 
-    final stats = <String, Map<String, String>>{};
+    final stats = ex ? await _exTraffic() : <String, Map<String, String>>{};
     if (!ex && _statsSupported) {
       try {
         for (final s in (await _query([_Act.gl('STAT_ENTRY')]))[0]) {
@@ -351,21 +358,77 @@ class TplinkClient implements RouterSource {
       final type = int.tryParse(r[ex ? 'X_TP_LanConnType' : 'X_TP_ConnType'] ?? '');
       final s = stats[mac];
       int? num(String k) => s == null ? null : int.tryParse(s[k] ?? '');
-      final totalDown = num('totalBytesRx'), totalUp = num('totalBytesTx');
+      // Traffic statistics first; Wi-Fi association counters (bytes the
+      // access point sent to the device are its download) otherwise.
+      var totalDown = num('totalBytesRx') ?? num('wifiBytesDown');
+      final totalUp = num('totalBytesTx') ?? num('wifiBytesUp');
+      // Older firmware counts both directions together.
+      totalDown ??= totalUp == null ? num('totalBytes') : null;
+      var downBps = num('currBytesRx')?.toDouble();
+      var upBps = num('currBytesTx')?.toDouble();
+      if (totalDown != null || totalUp != null) {
+        final last = _lastCounters[mac];
+        if (downBps == null && last != null) {
+          final secs = now.difference(last.$1).inMilliseconds / 1000;
+          double? rate(int? a, int? b) => a == null || b == null || a < b || secs <= 0 ? null : (a - b) / secs;
+          downBps = rate(totalDown, last.$2);
+          upBps = rate(totalUp, last.$3);
+        }
+        _lastCounters[mac] = (now, totalDown, totalUp);
+      }
       clients.add(ClientInfo(
         mac: mac,
         ip: r['IPAddress'] ?? '',
         hostname: r['hostName'] ?? '',
         vendor: r['X_TP_Vendor'] ?? '',
         link: ex ? _exLink(type) : _mrLink(type),
-        downBps: num('currBytesRx')?.toDouble(),
-        upBps: num('currBytesTx')?.toDouble(),
-        // Older firmware counts both directions together.
-        totalDown: totalDown ?? (totalUp == null ? num('totalBytes') : null),
+        downBps: downBps,
+        upBps: upBps,
+        totalDown: totalDown,
         totalUp: totalUp,
       ));
     }
-    return RouterSnapshot(DateTime.now(), clients);
+    return RouterSnapshot(now, clients);
+  }
+
+  /// Per-MAC traffic fields on EX firmware, from the traffic statistics
+  /// table and from Wi-Fi association counters, whichever it has. A table
+  /// the router refuses is not asked for again.
+  Future<Map<String, Map<String, String>>> _exTraffic() async {
+    final out = <String, Map<String, String>>{};
+    String? macOf(Map<String, String> r) => r['macAddress'] ?? r['MACAddress'] ?? r['physAddress'];
+    if (_exStatsSupported) {
+      try {
+        for (final r in (await _query([_Act.gl('DEV2_STAT_ENTRY')]))[0]) {
+          final mac = macOf(r);
+          if (mac != null) out[normalizeMac(mac)] = r;
+        }
+      } catch (e) {
+        _exStatsSupported = false;
+        log?.call('No DEV2_STAT_ENTRY: $e');
+      }
+    }
+    if (_exAssocSupported) {
+      try {
+        final assoc = (await _query([_Act.gl('DEV2_WIFI_ASSOC_DEV')]))[0];
+        final stat = (await _query([_Act.gl('DEV2_WIFI_ASSOC_DEV_STAT')]))[0];
+        // A Stats object sits at its device's stack; else match by order.
+        final byStack = {for (final x in stat) x['stack']: x};
+        for (final (i, a) in assoc.indexed) {
+          final mac = macOf(a);
+          if (mac == null) continue;
+          final st = byStack[a['stack']] ?? (stat.length == assoc.length ? stat[i] : const <String, String>{});
+          final merged = {...a, ...st};
+          final down = merged['bytesSent'], up = merged['bytesReceived'];
+          if (down == null && up == null) continue;
+          out.putIfAbsent(normalizeMac(mac), () => {}).addAll({'wifiBytesDown': ?down, 'wifiBytesUp': ?up});
+        }
+      } catch (e) {
+        _exAssocSupported = false;
+        log?.call('No Wi-Fi association counters: $e');
+      }
+    }
+    return out;
   }
 
   static Link _mrLink(int? t) => switch (t) {
@@ -407,13 +470,27 @@ class TplinkClient implements RouterSource {
       final (code, js) = await _send('GET', '$host/js/oid_str.js');
       final all = {for (final m in RegExp(r'DEV2_[A-Z0-9_]+').allMatches(js)) m[0]!};
       final pick = (all.where((n) => _trafficName.hasMatch(n) && !_notTraffic.hasMatch(n)).toList()..sort());
-      log?.call('js/oid_str.js: HTTP $code, ${all.length} tables; maybe traffic: ${pick.join(', ')}');
-      return pick.take(30).toList();
+      log?.call('js/oid_str.js: HTTP $code, ${all.length} tables');
+      final first = [for (final n in _likelyTraffic) if (all.contains(n)) n];
+      return [...first, ...pick.where((n) => !first.contains(n) && !n.endsWith('_MAX_INST'))].take(50).toList();
     } catch (e) {
       log?.call('js/oid_str.js: $e');
       return [];
     }
   }
+
+  /// Looked at first, with a sample of their values.
+  static const _likelyTraffic = [
+    'DEV2_STAT_CFG',
+    'DEV2_STAT_ENTRY',
+    'DEV2_WIFI_ASSOC_DEV',
+    'DEV2_WIFI_ASSOC_DEV_STAT',
+    'DEV2_WIFI_APDEV_ASSOCDEV',
+    'DEV2_WIFI_APDEV_STATS',
+    'DEV2_WIFI_APDEV_STESTATS',
+    'DEV2_X_TP_ONEMESH_CLIENT',
+    'DEV2_ADT_WIFI_CLIENT',
+  ];
 
   Future<void> _describeTable(String oid) async {
     for (final act in [_Act.gl(oid), _Act.get(oid)]) {
@@ -421,6 +498,12 @@ class TplinkClient implements RouterSource {
         final rows = (await _query([act]))[0];
         final keys = <String>{for (final r in rows) ...r.keys}..remove('stack');
         log?.call('$oid (${act.exType}): ${rows.length} entries, fields: ${keys.take(40).join(', ')}');
+        if (_likelyTraffic.contains(oid) && rows.isNotEmpty) {
+          final sample = rows.first.entries
+              .take(25)
+              .map((e) => '${e.key}=${e.value.length > 24 ? '${e.value.substring(0, 24)}…' : e.value}');
+          log?.call('  first entry: ${sample.join(', ')}');
+        }
         return;
       } catch (e) {
         if (act.exType == 'go') log?.call('$oid: $e');

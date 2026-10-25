@@ -34,15 +34,11 @@ void main() {
         expect(phone.mac, '3C:2E:F9:10:22:01');
         expect(phone.ip, '192.168.0.101');
         expect(snap.clients[1].link, Link.wired);
-        if (variant.protocol == TpProtocol.ex) {
-          expect(phone.link, Link.wifi5g);
-          expect(phone.totalDown, isNull);
-        } else {
-          expect(phone.link, Link.wifi5g);
-          expect(phone.totalDown, 5000);
-          expect(phone.totalUp, 700);
-          expect(phone.downBps, 120);
-        }
+        expect(phone.link, Link.wifi5g);
+        expect(phone.totalDown, 5000);
+        expect(phone.totalUp, 700);
+        // MR/VR traffic statistics report speed; EX counters only totals.
+        expect(phone.downBps, variant.protocol == TpProtocol.ex ? isNull : 120);
         await client.close();
       });
 
@@ -137,7 +133,7 @@ void main() {
     final client = TplinkClient(host: router.address, username: 'admin', password: 'secret', log: lines.add);
     await client.connect();
     await client.describeDeviceFields();
-    expect(lines, contains(startsWith('js/oid_str.js: HTTP 200, 4 tables; maybe traffic: DEV2_WIFI_ASSOC_STATS')));
+    expect(lines, contains('js/oid_str.js: HTTP 200, 4 tables'));
     expect(lines, contains(startsWith('DEV2_WIFI_ASSOC_STATS:')));
     expect(lines.where((l) => l.contains('LTE_SMS')), hasLength(0));
     expect((await client.fetch()).clients.first.vendor, 'vivo Mobile Communication');
@@ -153,6 +149,29 @@ void main() {
         host: router.address, username: 'admin', password: 'secret', timeout: const Duration(milliseconds: 500));
     expect((await client.fetch()).clients, hasLength(2));
     expect(client.variant?.id, 'ex-cbc');
+    await client.close();
+    await router.stop();
+  });
+
+  test('EX: usage from Wi-Fi association counters, speed from their change', () async {
+    final router = FakeTplinkRouter(variant: const TpVariant(TpProtocol.ex, TpCipher.cbc), hosts: _hosts);
+    await router.start();
+    final client = TplinkClient(host: router.address, username: 'admin', password: 'secret');
+    final first = (await client.fetch()).clients.first;
+    expect(first.totalDown, 5000);
+    expect(first.totalUp, 700);
+    expect(first.downBps, isNull);
+    expect((await client.fetch()).clients[1].totalDown, isNull, reason: 'wired: no Wi-Fi counters');
+
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    router.hosts = [
+      const FakeHost('3C:2E:F9:10:22:01', '192.168.0.101', 'V2219', 3, totalRx: 105000, totalTx: 1700),
+      ..._hosts.skip(1),
+    ];
+    final next = (await client.fetch()).clients.first;
+    expect(next.totalDown, 105000);
+    expect(next.downBps, greaterThan(50000));
+    expect(next.downBps, lessThan(200000));
     await client.close();
     await router.stop();
   });

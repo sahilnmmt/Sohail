@@ -198,7 +198,8 @@ class TplinkClient implements RouterSource {
     }
 
     final ret = _retCode(reply);
-    log?.call('Login reply code: ${ret ?? 'none'}, cookies: ${_cookies.keys.join(', ')}');
+    log?.call('Login reply code: ${ret ?? 'none'}, cookies: ${_cookies.keys.join(', ')}, '
+        'reply: ${_hideTokens(reply.replaceAll(RegExp(r'\s+'), ' ').trim())}');
     if (ret == _wrongPasswordRet) {
       throw RouterException('The router says the user name or password is wrong.', wrongPassword: true);
     }
@@ -209,7 +210,14 @@ class TplinkClient implements RouterSource {
     final (code, page) = await _send('GET', _url(''));
     final found = code == 200 ? findToken(page) : null;
     variant = v;
-    if (found == null) log?.call('No session token found. Start page (HTTP $code): ${describePage(page)}');
+    if (found == null) {
+      final loginPage = RegExp(r'var\s+token\s*;').hasMatch(page) || page.contains('getBindStatus');
+      log?.call('No session token found. Start page (HTTP $code): ${describePage(page)}');
+      if (loginPage) {
+        log?.call('This looks like the login page: the router did not keep the session. '
+            'Check the user name: use the router\'s local login (admin or user), not a TP-Link ID email.');
+      }
+    }
     // Check the token with a real request. Some firmware checks only the
     // session cookie, so also try without one.
     Object? lastError;
@@ -438,11 +446,16 @@ class TplinkClient implements RouterSource {
 
   /// What the router's start page looks like, for the connection test, with
   /// anything after "token" hidden.
+  static String _hideTokens(String t) {
+    final cut = t.length > 160 ? '${t.substring(0, 160)}…' : t;
+    return cut.replaceAllMapped(
+        RegExp(r'[0-9A-Za-z+/=]{12,}'), (m) => RegExp(r'\d').hasMatch(m[0]!) ? '<${m[0]!.length} chars>' : m[0]!);
+  }
+
   static String describePage(String page) {
     final title = RegExp(r'<title>([^<]*)</title>', caseSensitive: false).firstMatch(page)?.group(1)?.trim();
     // Values that look like tokens (long, with a digit) are hidden.
-    String hide(String t) => t.replaceAllMapped(
-        RegExp(r'[0-9A-Za-z]{12,}'), (m) => RegExp(r'\d').hasMatch(m[0]!) ? '<${m[0]!.length} chars>' : m[0]!);
+    String hide(String t) => _hideTokens(t);
     final hints = <String>{
       for (final m in RegExp(r'[^\n;{}]*token[^\n;{}]*', caseSensitive: false).allMatches(page))
         hide(m[0]!.trim().length > 100 ? m[0]!.trim().substring(0, 100) : m[0]!.trim()),

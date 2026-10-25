@@ -122,7 +122,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               controller: _user,
               decoration: const InputDecoration(
                 labelText: 'User name',
-                helperText: 'Usually admin. Some ISP routers use user.',
+                helperText: 'Usually admin (some ISP routers: user). Not your TP-Link ID email.',
                 border: OutlineInputBorder(),
               ),
             ),

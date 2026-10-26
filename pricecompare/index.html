@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Compare one product across shopping sites: price difference, seller and ratings." />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Price Compare</title>
+  </head>
+  <body>
+    <header class="top">
+      <div class="wrap">
+        <a class="brand" href="/">₹ <span>Price Compare</span></a>
+        <p class="tagline">One product, every shop: price, seller and ratings side by side.</p>
+      </div>
+    </header>
+    <main class="wrap">
+      <nav class="tabs" role="tablist">
+        <button role="tab" id="tab-search" aria-controls="panel-search" aria-selected="true">Search products</button>
+        <button role="tab" id="tab-links" aria-controls="panel-links" aria-selected="false">Compare my links</button>
+      </nav>
+
+      <section id="panel-search" role="tabpanel" aria-labelledby="tab-search">
+        <form id="search-form" class="searchbar">
+          <input id="q" name="q" type="search" placeholder="Search a product, e.g. iPhone 15 128GB" autocomplete="off" aria-label="Product to search" />
+          <button type="submit" class="primary">Compare prices</button>
+        </form>
+        <div class="chips" id="suggestions"></div>
+        <div id="search-results" aria-live="polite"></div>
+      </section>
+
+      <section id="panel-links" role="tabpanel" aria-labelledby="tab-links" hidden>
+        <form id="links-form" class="card" novalidate>
+          <label for="urls"><strong>Paste the same product's link from each shop</strong>, one per line</label>
+          <textarea id="urls" rows="5" placeholder="https://www.amazon.in/…&#10;https://www.flipkart.com/…&#10;https://www.croma.com/…"></textarea>
+          <details id="manual">
+            <summary>Add an offer by hand (for shops that block automatic reading)</summary>
+            <div class="manual-grid">
+              <label>Shop <input name="siteName" placeholder="Amazon" /></label>
+              <label>Price <input name="price" type="number" min="1" step="0.01" placeholder="64999" /></label>
+              <label>Delivery <input name="shipping" type="number" min="0" step="0.01" placeholder="0" /></label>
+              <label>MRP <input name="mrp" type="number" min="0" step="0.01" placeholder="89999" /></label>
+              <label>Seller <input name="seller" placeholder="Appario Retail" /></label>
+              <label>Seller rating /5 <input name="sellerRating" type="number" min="0" max="5" step="0.1" /></label>
+              <label>Product rating /5 <input name="rating" type="number" min="0" max="5" step="0.1" /></label>
+              <label>Reviews <input name="reviewCount" type="number" min="0" step="1" /></label>
+              <label class="wide">Product name <input name="title" placeholder="Samsung Galaxy S24 (Onyx Black, 256 GB)" /></label>
+              <label class="wide">Link <input name="url" type="url" placeholder="https://…" /></label>
+            </div>
+            <button type="button" id="add-manual">Add offer</button>
+            <ul id="manual-list" class="manual-list"></ul>
+          </details>
+          <p class="error" id="links-error" role="alert"></p>
+          <button type="submit" class="primary">Compare links</button>
+        </form>
+        <div id="links-results" aria-live="polite"></div>
+      </section>
+    </main>
+    <footer class="wrap foot">
+      <p>
+        The value score weighs price (60%), rating adjusted for review count (30%) and seller trust (10%).
+        Always check the final price, seller and warranty on the shop's own page before you buy.
+      </p>
+    </footer>
+    <script type="module" src="/src/web/main.ts"></script>
+  </body>
+</html>

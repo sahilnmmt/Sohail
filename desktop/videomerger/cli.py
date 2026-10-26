@@ -81,7 +81,7 @@ def _cmd_merge(args) -> int:
         "mute_clips": args.mute_clips,
     }
     if args.sound:
-        data["sound"] = {"path": args.sound, "start": args.sound_start, "end": args.sound_end, "loop": not args.no_loop, "volume": args.volume}
+        data["sound"] = {"path": args.sound, "start": args.sound_start, "end": args.sound_end, "loop": not args.no_loop, "volume": args.volume, "repeat_video": args.repeat_video}
     if args.srt:
         data["subtitles"] = {"mode": "file", "file": args.srt, "burn": not args.no_burn}
     elif args.subtitles:
@@ -173,6 +173,7 @@ def parser() -> argparse.ArgumentParser:
     merge.add_argument("--sound-end", default=None)
     merge.add_argument("--no-loop", action="store_true", help="do not repeat a sound that is shorter than the video")
     merge.add_argument("--volume", type=float, default=1.0, help="sound volume, 1 is unchanged")
+    merge.add_argument("--repeat-video", action="store_true", help="repeat the clips until the sound ends, if the sound is longer")
     merge.add_argument("--subtitles", action="store_true", help="make subtitles from the speech")
     merge.add_argument("--model", choices=WHISPER_MODELS, default="small", help="Whisper model: bigger is better and slower")
     merge.add_argument("--language", help="speech language such as en or hi (default: detect)")

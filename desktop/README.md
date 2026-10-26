@@ -6,7 +6,7 @@ command line for automation.
 - **Merge** any number of videos, in the order you choose (local files or direct links).
 - **Trim** and **rotate** each clip.
 - **Output size:** 1080p (Full HD) or 1440p (2K), and frames per second. Smaller clips are scaled up, so output is never below 1080p. The first clip sets landscape or portrait; other shapes get black bars.
-- **Sound from another file:** take the sound from another video or an audio file (MP3, M4A, WAV…), trim it, repeat it, set its volume, and replace or mix with the clips' own sound.
+- **Sound from another file:** take the sound from another video or an audio file (MP3, M4A, WAV…), trim it, repeat it, set its volume, and replace or mix with the clips' own sound. If the sound is longer than the video, the clips can repeat until it ends.
 - **Subtitles from speech:** Whisper listens to the finished video's sound and writes captions, offline. They are drawn into the video and/or saved as an `.srt` file. You can also use your own `.srt`.
 - **Free stock videos:** search and download from [Pexels](https://www.pexels.com/api/) (free API key).
 
@@ -30,6 +30,9 @@ VideoMerger merge intro.mp4 "C:\clips\talk.mp4" https://example.com/b-roll.mp4 ^
 
 :: everything in a recipe file (see below)
 VideoMerger run recipe.json
+
+:: a short clip repeated for as long as the song plays
+VideoMerger merge loop.mp4 -o music-video.mp4 --sound song.mp3 --mute-clips --repeat-video
 
 :: machine-readable progress (stderr) and result (stdout)
 VideoMerger run recipe.json --json
@@ -58,7 +61,7 @@ Make one with *File → Save recipe…* in the window, with `merge … --save-re
     {"path": "clip2.mp4", "rotate": 90},
     {"path": "https://example.com/videos/clip3.mp4"}
   ],
-  "sound": {"path": "song.mp3", "start": 0, "loop": true, "volume": 0.3},
+  "sound": {"path": "song.mp3", "start": 0, "loop": true, "volume": 0.3, "repeat_video": false},
   "subtitles": {"mode": "speech", "model": "small", "language": null, "burn": true, "save_srt": true}
 }
 ```
@@ -68,7 +71,7 @@ Make one with *File → Save recipe…* in the window, with `merge … --save-re
 | `clips` | In order. `path` is a file (relative to the recipe) or a direct `http(s)` link to a video file. `start`/`end` in seconds or `m:ss`. `rotate`: 0, 90, 180, 270 clockwise. |
 | `resolution` | `1080p` (default) or `1440p` (also written `2k`) |
 | `mute_clips` | `true` drops the clips' own sound |
-| `sound` | Optional. Sound from another video or audio file; `loop` repeats it if shorter than the video; `volume` 1 = unchanged. It always stops when the video ends. |
+| `sound` | Optional. Sound from another video or audio file; `loop` repeats it if shorter than the video; `volume` 1 = unchanged; `repeat_video` repeats the clips, in order, until the sound ends if the sound is longer (the last repeat is cut short). Otherwise it stops when the video ends. |
 | `subtitles.mode` | `off`, `speech` (Whisper; `model`: tiny, base, small, medium, large-v3; `language`: e.g. `en`, `hi`, `ur`, or null to detect) or `file` (with `"file": "captions.srt"`) |
 | `subtitles.burn` / `save_srt` | Draw them into the video / also write `output.srt` |
 

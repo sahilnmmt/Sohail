@@ -9,7 +9,7 @@ Example::
         {"path": "intro.mp4", "start": "0:02", "end": "0:10", "rotate": 90},
         {"path": "https://example.com/clip.mp4"}
       ],
-      "sound": {"path": "song.mp3", "start": 5, "loop": true},
+      "sound": {"path": "song.mp3", "start": 5, "loop": true, "repeat_video": false},
       "subtitles": {"mode": "speech", "model": "small"}
     }
 
@@ -73,6 +73,8 @@ class Sound:
     end: float | None = None
     loop: bool = True
     volume: float = 1.0
+    repeat_video: bool = False
+    """Repeat the clips, in order, until the sound ends (when the sound is longer than the video)."""
 
 
 @dataclass
@@ -184,13 +186,14 @@ def from_dict(data: dict, base_dir: str | Path = ".") -> Recipe:
             raw = {"path": raw}
         if not isinstance(raw, dict) or not isinstance(raw.get("path"), str) or not raw["path"]:
             raise RecipeError("recipe.sound: needs a \"path\" (video or audio file, or URL)")
-        _unknown(raw, {"path", "start", "end", "loop", "volume"}, "sound")
+        _unknown(raw, {"path", "start", "end", "loop", "volume", "repeat_video"}, "sound")
         sound = Sound(
             path=raw["path"],
             start=parse_time(raw.get("start"), "sound.start") or 0.0,
             end=parse_time(raw.get("end"), "sound.end"),
             loop=_get(raw, "loop", bool, True, "sound"),
             volume=_get(raw, "volume", float, 1.0, "sound"),
+            repeat_video=_get(raw, "repeat_video", bool, False, "sound"),
         )
         if sound.end is not None and sound.end <= sound.start:
             raise RecipeError("sound: end must be after start")

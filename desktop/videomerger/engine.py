@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Callable
 
@@ -17,6 +17,8 @@ from .recipe import Recipe, RecipeError, is_url
 
 SAMPLE_RATE = 48000
 AUDIO_FORMAT = f"aresample={SAMPLE_RATE},aformat=sample_fmts=fltp:channel_layouts=stereo"
+# Each repeat of a clip is another ffmpeg input; past this many, ask for a shorter sound instead.
+MAX_REPEATED_CLIPS = 200
 
 # stage is one of: download, probe, speech, encode. fraction is 0..1.
 Progress = Callable[[str, float], None]
@@ -82,6 +84,28 @@ def overwrites_input(recipe: Recipe) -> bool:
     """True when the output file is one of the clips or the added sound."""
     paths = [recipe.resolve(c.path) for c in recipe.clips] + ([recipe.resolve(recipe.sound.path)] if recipe.sound else [])
     return _is_any(output_path(recipe), paths)
+
+
+def repeat_to(segments: list[Segment], seconds: float) -> list[Segment]:
+    """The clips again and again, in order, until they last `seconds`; the last one is cut short."""
+    total = sum(s.duration for s in segments)
+    if seconds <= total:
+        return segments
+    count = int(seconds // total + 1) * len(segments)
+    if count > MAX_REPEATED_CLIPS:
+        raise ExportError(
+            f"The sound ({seconds:.0f}s) is too long to repeat {total:.1f}s of video until it ends; "
+            "trim the sound or add longer clips"
+        )
+    repeated: list[Segment] = []
+    left = seconds
+    while left > 0.05:  # less than two frames left over is not worth another clip
+        for seg in segments:
+            if left <= 0.05:
+                break
+            repeated.append(replace(seg, duration=min(seg.duration, left)))
+            left -= seg.duration
+    return repeated
 
 
 def _rotate_filter(degrees: int) -> str:
@@ -162,6 +186,8 @@ class Job:
             if r.sound.start >= end:
                 raise ExportError(f"Sound: start {r.sound.start:.1f}s is past its end ({info.duration:.1f}s)")
             self.sound = SoundSegment(path, r.sound.start, end, r.sound.loop, r.sound.volume)
+            if r.sound.repeat_video:
+                self.segments = repeat_to(self.segments, end - r.sound.start)
 
         first = self.segments[0]
         w, h = (first.info.height, first.info.width) if first.rotate % 180 else (first.info.width, first.info.height)

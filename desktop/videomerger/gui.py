@@ -199,8 +199,11 @@ class App:
         self.loop = tk.BooleanVar(value=True)
         self.loop_check = ttk.Checkbutton(sound, text="Repeat if shorter than the video", variable=self.loop, command=self._sound_options)
         self.loop_check.grid(row=3, column=0, columnspan=4, sticky="w", pady=(4, 0))
+        self.repeat_video = tk.BooleanVar(value=False)
+        self.repeat_video_check = ttk.Checkbutton(sound, text="Repeat the video if shorter than the sound", variable=self.repeat_video, command=self._sound_options)
+        self.repeat_video_check.grid(row=4, column=0, columnspan=4, sticky="w")
         volume_row = ttk.Frame(sound)
-        volume_row.grid(row=4, column=0, columnspan=4, sticky="we")
+        volume_row.grid(row=5, column=0, columnspan=4, sticky="we")
         ttk.Label(volume_row, text="Volume").pack(side="left")
         self.volume = tk.DoubleVar(value=100)
         self.volume_scale = ttk.Scale(volume_row, from_=0, to=200, variable=self.volume, command=lambda v: self._sound_options())
@@ -316,7 +319,7 @@ class App:
         for key in ("trim", "rotate", "remove"):
             self.clip_buttons[key].configure(state=state(has))
         self.sound_add.configure(state=state(True), text="Change sound…" if self.sound else "Add sound…")
-        for widget in (self.sound_trim, self.sound_remove, self.loop_check, self.volume_scale):
+        for widget in (self.sound_trim, self.sound_remove, self.loop_check, self.repeat_video_check, self.volume_scale):
             widget.configure(state=state(self.sound is not None))
         speech = self.sub_mode.get() == "speech"
         self.model_box.configure(state="readonly" if speech and not busy else "disabled")
@@ -416,7 +419,7 @@ class App:
             return
         if self.sound is None:
             self.mute.set(True)  # usually you want the new sound instead of the old one
-        self.sound, self.sound_info = Sound(path, loop=self.loop.get(), volume=round(self.volume.get() / 100, 2)), info
+        self.sound, self.sound_info = Sound(path, loop=self.loop.get(), volume=round(self.volume.get() / 100, 2), repeat_video=self.repeat_video.get()), info
         self._refresh()
 
     def trim_sound(self):
@@ -436,6 +439,7 @@ class App:
         if self.sound:
             self.sound.loop = self.loop.get()
             self.sound.volume = round(self.volume.get() / 100, 2)
+            self.sound.repeat_video = self.repeat_video.get()
         self.volume_label.configure(text=f"{int(self.volume.get())}%")
 
     def choose_srt(self):
@@ -484,9 +488,11 @@ class App:
                 self.sound_info = self._probe(self.sound.path)
             self.loop.set(self.sound.loop)
             self.volume.set(self.sound.volume * 100)
+            self.repeat_video.set(self.sound.repeat_video)
         else:  # back to the defaults, so the next sound added doesn't inherit old settings
             self.loop.set(True)
             self.volume.set(100)
+            self.repeat_video.set(False)
         self.resolution.set(recipe.resolution)
         self.fps.set(str(recipe.fps))
         self.mute.set(recipe.mute_clips)

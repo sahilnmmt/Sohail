@@ -49,6 +49,14 @@ def test_without_json_errors_stay_on_stderr(capsys):
     assert "recipe.fps" in err
 
 
+def test_repeat_video_flag_is_saved_in_the_recipe(capsys, media):
+    saved = media["dir"] / "saved.json"
+    code, out, err = run(capsys, "merge", str(media["landscape"]), "--sound", str(media["song"]), "--repeat-video",
+                         "-o", str(media["dir"] / "out.mp4"), "--save-recipe", str(saved), "--json")
+    assert code == 0 and json.loads(out)["ok"]
+    assert json.loads(saved.read_text(encoding="utf-8"))["sound"]["repeat_video"] is True
+
+
 def test_output_onto_an_input_is_refused(capsys, media):
     clip = media["landscape"]
     before = clip.read_bytes()

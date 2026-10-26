@@ -1,7 +1,7 @@
 import json
 
 import pytest
-from conftest import make_clip
+from conftest import make_clip, make_tone
 
 from videomerger import engine
 from videomerger import ffmpeg as tools
@@ -51,6 +51,35 @@ def test_sound_from_another_file_loops_and_stops_with_the_video(media):
 def test_sound_mixed_with_clip_sound(media):
     result = export(media, clips=["landscape.mp4"], sound={"path": "song.wav", "loop": False, "volume": 0.5})
     assert tools.probe(result.output).duration == pytest.approx(3, abs=0.15)
+
+
+def test_video_repeats_until_a_longer_sound_ends(media):
+    make_tone(media["dir"] / "long.wav", 12)
+    result = export(media, clips=["landscape.mp4", "silent.mp4"], mute_clips=True, sound={"path": "long.wav", "repeat_video": True})
+    info = tools.probe(result.output)
+    assert info.has_audio
+    assert info.duration == pytest.approx(12, abs=0.15)  # 5 s of clips: twice, then 2 s of the first clip
+
+
+def test_repeated_video_keeps_the_clips_sound_mixed_in(media):
+    make_tone(media["dir"] / "long.wav", 7)
+    result = export(media, clips=["portrait.mp4"], sound={"path": "long.wav", "start": 1, "repeat_video": True})
+    assert tools.probe(result.output).duration == pytest.approx(6, abs=0.15)  # the sound from 0:01 lasts 6 s
+
+
+def test_repeat_video_does_nothing_when_the_sound_is_shorter(media):
+    result = export(media, clips=["landscape.mp4", "silent.mp4"], sound={"path": "song.wav", "repeat_video": True})
+    assert tools.probe(result.output).duration == pytest.approx(5, abs=0.15)
+
+
+def test_repeat_to():
+    info = tools.MediaInfo(duration=3, width=640, height=360, has_video=True, has_audio=True)
+    a, b = engine.Segment("a.mp4", 0, 3, 0, info), engine.Segment("b.mp4", 1, 2, 0, info)
+    assert [(s.path, s.duration) for s in engine.repeat_to([a, b], 12)] == [("a.mp4", 3), ("b.mp4", 2), ("a.mp4", 3), ("b.mp4", 2), ("a.mp4", 2)]
+    assert engine.repeat_to([a, b], 4) == [a, b]
+    assert [s.start for s in engine.repeat_to([b], 5)] == [1, 1, 1]  # trims are kept on every repeat
+    with pytest.raises(engine.ExportError, match="too long to repeat"):
+        engine.repeat_to([a], 3 * engine.MAX_REPEATED_CLIPS + 10)
 
 
 def test_no_sound_at_all(media):

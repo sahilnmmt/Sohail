@@ -232,8 +232,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.func(args)
     except RecipeError as e:
-        print(f"Recipe error: {e}", file=sys.stderr)
-        return 2
+        return _fail(args, f"Recipe error: {e}", 2)
     except (tools.ToolError, sources.DownloadError) as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return 1
+        return _fail(args, str(e), 1, prefix="Error: ")
+
+
+def _fail(args, message: str, code: int, prefix: str = "") -> int:
+    """With --json, automation gets the same one-line result as a failed export; people get the message on stderr."""
+    if getattr(args, "json", False):
+        print(json.dumps({"ok": False, "error": message}))
+    else:
+        print(prefix + message, file=sys.stderr)
+    return code

@@ -238,4 +238,10 @@ def load(path: str | Path) -> Recipe:
         data = json.loads(path.read_text(encoding="utf-8-sig"))
     except json.JSONDecodeError as e:
         raise RecipeError(f"{path.name}: not valid JSON ({e})") from None
+    except UnicodeDecodeError:
+        raise RecipeError(f"{path.name}: not a text file (save it as UTF-8)") from None
+    except FileNotFoundError:
+        raise RecipeError(f"Recipe file not found: {path.resolve()}") from None
+    except OSError as e:
+        raise RecipeError(f"Cannot read recipe {path}: {e.strerror or e}") from None
     return from_dict(data, path.parent)

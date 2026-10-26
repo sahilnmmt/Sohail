@@ -89,6 +89,15 @@ def test_clear_errors(media):
         export(media, clips=["missing.mp4"])
 
 
+def test_output_never_overwrites_an_input(media):
+    before = media["landscape"].read_bytes(), media["portrait"].read_bytes()
+    with pytest.raises(engine.ExportError, match="also one of the inputs"):
+        export(media, clips=["landscape.mp4"], output="landscape.mp4")
+    with pytest.raises(engine.ExportError, match="also one of the inputs"):
+        export(media, clips=["landscape.mp4"], output="portrait.mp4", sound="portrait.mp4")
+    assert (media["landscape"].read_bytes(), media["portrait"].read_bytes()) == before
+
+
 @pytest.mark.parametrize(
     "recipe, message",
     [

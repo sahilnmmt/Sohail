@@ -267,6 +267,9 @@ class Job:
         output = Path(r.resolve(r.output))
         if output.suffix.lower() != ".mp4":
             output = output.with_suffix(".mp4")
+        inputs = [s.path for s in self.segments] + ([self.sound.path] if self.sound else [])
+        if output.exists() and any(os.path.samefile(output, path) for path in inputs):
+            raise ExportError(f"The output {output.name} is also one of the inputs; choose another output name")
         output.parent.mkdir(parents=True, exist_ok=True)
 
         work = tempfile.mkdtemp(prefix="videomerger-")

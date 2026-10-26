@@ -7,6 +7,7 @@ from typing import Callable, Iterable
 
 MAX_CHARS = 42
 MAX_SECONDS = 5.0
+MODEL_SIZES = {"tiny": "about 75 MB", "base": "about 145 MB", "small": "about 460 MB", "medium": "about 1.5 GB", "large-v3": "about 3 GB"}
 PAUSE = 0.8
 """A silence this long (seconds) starts a new caption."""
 
@@ -77,7 +78,14 @@ def transcribe(
     except ImportError as e:  # pragma: no cover - only without the optional dependency
         raise RuntimeError("Subtitles from speech need faster-whisper: pip install faster-whisper") from e
 
-    model = WhisperModel(model_name, device="cpu", compute_type="int8")
+    try:
+        model = WhisperModel(model_name, device="cpu", compute_type="int8")
+    except Exception as e:
+        raise RuntimeError(
+            f"Could not load the Whisper '{model_name}' speech model. The first time, it downloads from "
+            f"huggingface.co ({MODEL_SIZES.get(model_name, 'a few hundred MB')}), so you need internet; "
+            f"after that it works offline. Details: {type(e).__name__}: {e}"
+        ) from e
     segments, info = model.transcribe(wav_path, language=language, vad_filter=True, word_timestamps=True)
     words: list[tuple[float, float, str]] = []
     for segment in segments:  # a generator: transcription happens while iterating

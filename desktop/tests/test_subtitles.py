@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import subprocess
@@ -26,6 +27,22 @@ def test_long_speech_is_split():
 def test_srt_format():
     srt = to_srt(group_words([(61.25, 62.5, "Hi")]))
     assert srt == "1\n00:01:01,250 --> 00:01:02,500\nHi\n"
+
+
+def test_model_download_failure_is_a_clear_json_error(media, monkeypatch, capsys):
+    import faster_whisper
+
+    def offline(*args, **kwargs):
+        raise OSError("no internet")
+
+    monkeypatch.setattr(faster_whisper, "WhisperModel", offline)
+    monkeypatch.chdir(media["dir"])
+    from videomerger.cli import main
+
+    code = main(["merge", "landscape.mp4", "-o", "subs.mp4", "--subtitles", "--json"])
+    result = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert code == 1 and result["ok"] is False
+    assert "you need internet" in result["error"] and "no internet" in result["error"]
 
 
 @pytest.mark.skipif(not os.environ.get("RUN_WHISPER"), reason="set RUN_WHISPER=1 (downloads the Whisper tiny model; needs espeak-ng)")

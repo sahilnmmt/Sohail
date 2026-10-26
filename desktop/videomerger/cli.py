@@ -48,7 +48,9 @@ def _export(recipe, as_json: bool) -> int:
     except engine.Cancelled:
         print("Cancelled", file=sys.stderr)
         return 1
-    except (engine.ExportError, RuntimeError) as e:
+    except Exception as e:  # automation always gets one clear result line, never a traceback
+        if not isinstance(e, (engine.ExportError, RuntimeError, OSError)):
+            e = f"{type(e).__name__}: {e}"
         if as_json:
             print(json.dumps({"ok": False, "error": str(e)}))
         else:

@@ -16,6 +16,3 @@ and friends.
 - [`web/`](web/README.md): accounts website on Firebase (sign-in, families, invites, roles, robot registration).
 - [`tools/sohail_cli.py`](tools/sohail_cli.py): command-line client for testing.
 - [`server/`](server/docker-compose.yml): local Mosquitto broker for development.
-
-## Other projects
-- [`pricecompare/`](pricecompare/README.md): compares one product across shopping sites (price difference, seller, ratings).

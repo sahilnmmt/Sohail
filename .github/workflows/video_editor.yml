@@ -1,0 +1,56 @@
+name: video-editor
+
+on:
+  push:
+    paths: ["video_editor/**", ".github/workflows/video_editor.yml"]
+  pull_request:
+    paths: ["video_editor/**", ".github/workflows/video_editor.yml"]
+  workflow_dispatch:
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to update the "video-merger-latest" pre-release
+    defaults:
+      run:
+        working-directory: video_editor
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests, lint and release APK
+        run: ./gradlew --no-daemon -PversionCode=${{ github.run_number }} testReleaseUnitTest lintRelease assembleRelease
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: video-merger-apk
+          path: |
+            video_editor/app/build/outputs/apk/release/app-release.apk
+            video_editor/app/build/reports/lint-results-release.html
+
+      # One stable link to tap on a phone: the newest APK from a push, as a
+      # pre-release. Not for pull requests.
+      - name: Publish the "video-merger-latest" pre-release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/video-merger.apk"
+          git tag -f video-merger-latest "$GITHUB_SHA"
+          git push -f origin refs/tags/video-merger-latest
+          notes="Latest Video Merger build from \`$GITHUB_REF_NAME\` ($GITHUB_SHA). Download video-merger.apk on your Android phone and open it to install."
+          if gh release view video-merger-latest > /dev/null 2>&1; then
+            gh release edit video-merger-latest --prerelease --notes "$notes"
+          else
+            gh release create video-merger-latest --prerelease --title "Video Merger (latest build)" --notes "$notes"
+          fi
+          gh release upload video-merger-latest "$RUNNER_TEMP/video-merger.apk" --clobber

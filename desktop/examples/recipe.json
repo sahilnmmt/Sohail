@@ -1,0 +1,13 @@
+{
+  "output": "my-video.mp4",
+  "resolution": "1080p",
+  "fps": 30,
+  "mute_clips": false,
+  "clips": [
+    {"path": "clip1.mp4", "start": "0:02", "end": "0:12"},
+    {"path": "clip2.mp4", "rotate": 90},
+    {"path": "https://example.com/videos/clip3.mp4"}
+  ],
+  "sound": {"path": "song.mp3", "start": 0, "loop": true, "volume": 0.3},
+  "subtitles": {"mode": "speech", "model": "small", "language": null, "burn": true, "save_srt": true}
+}

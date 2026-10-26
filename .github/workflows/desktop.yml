@@ -1,0 +1,136 @@
+name: desktop
+
+on:
+  push:
+    paths: ["desktop/**", ".github/workflows/desktop.yml"]
+  pull_request:
+    paths: ["desktop/**", ".github/workflows/desktop.yml"]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: desktop/requirements*.txt
+      - name: Install FFmpeg, a speech synthesizer and the Python packages
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q ffmpeg espeak-ng
+          pip install -r requirements-dev.txt
+      - name: Tests, including real speech-to-subtitles (no skips allowed)
+        env:
+          RUN_WHISPER: "1"
+        run: |
+          python -m videomerger selftest
+          python -m pytest -v -rs tests | tee "$RUNNER_TEMP/test.log"
+          if grep -q " SKIPPED" "$RUNNER_TEMP/test.log"; then echo "::error::some tests were skipped"; exit 1; fi
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    permissions:
+      contents: write # to update the "video-merger-windows-latest" pre-release
+    defaults:
+      run:
+        working-directory: desktop
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: desktop/requirements*.txt
+      - run: pip install -r requirements-dev.txt
+
+      - name: Get FFmpeg for Windows (newest release branch, GPL build with subtitle support)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          asset=$(gh release view latest -R BtbN/FFmpeg-Builds --json assets -q '.assets[].name' \
+            | grep -E '^ffmpeg-n[0-9.]+-latest-win64-gpl-[0-9.]+\.zip$' | sort -V | tail -1)
+          echo "Using $asset"
+          gh release download latest -R BtbN/FFmpeg-Builds -p "$asset" -D "$RUNNER_TEMP"
+          unzip -q "$RUNNER_TEMP/$asset" -d "$RUNNER_TEMP/ffmpeg"
+          echo "FFMPEG_DIR=$(dirname "$(find "$RUNNER_TEMP/ffmpeg" -name ffmpeg.exe | head -1)")" >> "$GITHUB_ENV"
+
+      - name: Build VideoMerger.exe
+        run: |
+          pyinstaller --noconfirm --clean --log-level WARN --name VideoMerger --console \
+            --collect-all faster_whisper --collect-binaries ctranslate2 --collect-data onnxruntime --hidden-import pkg_resources \
+            VideoMerger.py
+          cp "$FFMPEG_DIR/ffmpeg.exe" "$FFMPEG_DIR/ffprobe.exe" dist/VideoMerger/
+          cp "$(dirname "$FFMPEG_DIR")/LICENSE.txt" dist/VideoMerger/FFmpeg-LICENSE.txt
+          cp README.md dist/VideoMerger/README.md
+          cp examples/recipe.json dist/VideoMerger/example-recipe.json
+
+      - name: Speak a test sentence with Windows text-to-speech
+        shell: pwsh
+        working-directory: ${{ runner.temp }}
+        run: |
+          try {
+            Add-Type -AssemblyName System.Speech
+            $s = New-Object System.Speech.Synthesis.SpeechSynthesizer
+            $s.SetOutputToWaveFile("$env:RUNNER_TEMP\speech.wav")
+            $s.Speak("Hello world. This is a video merger test.")
+            $s.Dispose()
+          } catch {
+            Write-Output "::warning::No Windows voice available: $_"
+          }
+
+      - name: Smoke test the built app (merge, sound, subtitles from a file and from speech)
+        working-directory: ${{ runner.temp }}
+        run: |
+          app="$GITHUB_WORKSPACE/desktop/dist/VideoMerger/VideoMerger.exe"
+          ff="$GITHUB_WORKSPACE/desktop/dist/VideoMerger/ffmpeg.exe"
+          "$app" --version
+          "$app" selftest
+          "$ff" -v error -y -f lavfi -i testsrc2=size=1280x720:rate=30:duration=3 -f lavfi -i sine=duration=3 -shortest -c:v libx264 -c:a aac a.mp4
+          "$ff" -v error -y -f lavfi -i testsrc2=size=720x1280:rate=30:duration=4 -c:v libx264 b.mp4
+          printf '1\n00:00:00,000 --> 00:00:02,000\nHello\n' > caps.srt
+          "$app" merge a.mp4 b.mp4 -o out1.mp4 --srt caps.srt --json | tee r1.json
+          grep -q '"ok": true' r1.json
+          if [ ! -s speech.wav ]; then
+            "$ff" -v error -y -f lavfi -i sine=duration=4 speech.wav
+            echo "::warning::no voice; checking that subtitles from speech run, not what they say"
+            check=""
+          else
+            check="hello"
+          fi
+          "$app" merge b.mp4 -o out2.mp4 --sound speech.wav --no-loop --mute-clips --subtitles --model tiny --language en --json | tee r2.json
+          grep -q '"ok": true' r2.json
+          cat out2.srt
+          if [ -n "$check" ]; then grep -qi "$check" out2.srt; fi
+
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path dist/VideoMerger -DestinationPath VideoMerger-windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: video-merger-windows
+          path: desktop/VideoMerger-windows.zip
+
+      - name: Publish the "video-merger-windows-latest" pre-release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          git tag -f video-merger-windows-latest "$GITHUB_SHA"
+          git push -f origin refs/tags/video-merger-windows-latest
+          notes="Latest Video Merger for Windows from \`$GITHUB_REF_NAME\` ($GITHUB_SHA). Download VideoMerger-windows.zip, unzip it, and run VideoMerger.exe."
+          if gh release view video-merger-windows-latest > /dev/null 2>&1; then
+            gh release edit video-merger-windows-latest --prerelease --notes "$notes"
+          else
+            gh release create video-merger-windows-latest --prerelease --title "Video Merger for Windows (latest build)" --notes "$notes"
+          fi
+          gh release upload video-merger-windows-latest VideoMerger-windows.zip --clobber

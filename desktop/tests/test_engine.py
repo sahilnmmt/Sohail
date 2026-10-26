@@ -98,6 +98,20 @@ def test_output_never_overwrites_an_input(media):
     assert (media["landscape"].read_bytes(), media["portrait"].read_bytes()) == before
 
 
+def test_overwrites_input_is_known_before_exporting(media):
+    """The window asks this before its "Replace?" question, so it never offers to replace a clip."""
+
+    def recipe(**data):
+        return from_dict({"clips": ["landscape.mp4"], **data}, media["dir"])
+
+    assert engine.overwrites_input(recipe(output="landscape.mp4"))
+    assert engine.overwrites_input(recipe(output="landscape"))  # becomes landscape.mp4
+    assert engine.overwrites_input(recipe(output="portrait.mp4", sound="portrait.mp4"))
+    assert not engine.overwrites_input(recipe(output="new.mp4"))
+    assert not engine.overwrites_input(recipe(output="silent.mp4"))  # exists, but not an input: "Replace?" is right
+    assert engine.output_path(recipe(output="x.mov")) == media["dir"] / "x.mp4"
+
+
 @pytest.mark.parametrize(
     "recipe, message",
     [

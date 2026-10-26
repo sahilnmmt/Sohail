@@ -68,6 +68,22 @@ def output_size(width: int, height: int, short_side: int) -> tuple[int, int]:
     return even(width * scale), even(height * scale)
 
 
+def output_path(recipe: Recipe) -> Path:
+    """Where the export is written: the recipe's output, always as .mp4."""
+    output = Path(recipe.resolve(recipe.output))
+    return output if output.suffix.lower() == ".mp4" else output.with_suffix(".mp4")
+
+
+def _is_any(output: Path, paths: list[str]) -> bool:
+    return output.exists() and any(not is_url(p) and Path(p).exists() and os.path.samefile(output, p) for p in paths)
+
+
+def overwrites_input(recipe: Recipe) -> bool:
+    """True when the output file is one of the clips or the added sound."""
+    paths = [recipe.resolve(c.path) for c in recipe.clips] + ([recipe.resolve(recipe.sound.path)] if recipe.sound else [])
+    return _is_any(output_path(recipe), paths)
+
+
 def _rotate_filter(degrees: int) -> str:
     return {0: "", 90: "transpose=clock,", 180: "hflip,vflip,", 270: "transpose=cclock,"}[degrees]
 
@@ -264,11 +280,9 @@ class Job:
     def run(self) -> Result:
         r = self.recipe
         self.prepare()
-        output = Path(r.resolve(r.output))
-        if output.suffix.lower() != ".mp4":
-            output = output.with_suffix(".mp4")
-        inputs = [s.path for s in self.segments] + ([self.sound.path] if self.sound else [])
-        if output.exists() and any(os.path.samefile(output, path) for path in inputs):
+        output = output_path(r)
+        # Checked again here, on the local files: a link may have downloaded to the output's name.
+        if _is_any(output, [s.path for s in self.segments] + ([self.sound.path] if self.sound else [])):
             raise ExportError(f"The output {output.name} is also one of the inputs; choose another output name")
         output.parent.mkdir(parents=True, exist_ok=True)
 

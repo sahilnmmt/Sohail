@@ -188,7 +188,7 @@ class App:
         sound.columnconfigure(0, weight=1)
         self.mute = tk.BooleanVar(value=False)
         ttk.Checkbutton(sound, text="Remove the clips' own sound", variable=self.mute, command=self._refresh).grid(row=0, column=0, columnspan=4, sticky="w")
-        self.sound_label = ttk.Label(sound, wraplength=330)
+        self.sound_label = ttk.Label(sound, wraplength=330, width=48)  # fixed width, so the box doesn't resize when a sound is added
         self.sound_label.grid(row=1, column=0, columnspan=4, sticky="w", pady=4)
         self.sound_add = ttk.Button(sound, text="Add sound…", command=self.add_sound)
         self.sound_add.grid(row=2, column=0, sticky="w")
@@ -416,7 +416,7 @@ class App:
             return
         if self.sound is None:
             self.mute.set(True)  # usually you want the new sound instead of the old one
-        self.sound, self.sound_info = Sound(path, loop=self.loop.get(), volume=self.volume.get() / 100), info
+        self.sound, self.sound_info = Sound(path, loop=self.loop.get(), volume=round(self.volume.get() / 100, 2)), info
         self._refresh()
 
     def trim_sound(self):
@@ -484,6 +484,9 @@ class App:
                 self.sound_info = self._probe(self.sound.path)
             self.loop.set(self.sound.loop)
             self.volume.set(self.sound.volume * 100)
+        else:  # back to the defaults, so the next sound added doesn't inherit old settings
+            self.loop.set(True)
+            self.volume.set(100)
         self.resolution.set(recipe.resolution)
         self.fps.set(str(recipe.fps))
         self.mute.set(recipe.mute_clips)
@@ -500,6 +503,8 @@ class App:
     def new(self):
         if self.job:
             return
+        self.last_output = None
+        self.progress.configure(value=0)
         self.load_recipe(Recipe(clips=[], output=str(Path.home() / "Videos" / "merged.mp4")))
         self.status.configure(text="Add videos to start.")
 
@@ -536,7 +541,11 @@ class App:
             messagebox.showerror("Subtitles", "Choose an .srt file, or switch subtitles off.")
             return
         recipe = self.to_recipe()
-        if Path(recipe.output).exists() and not messagebox.askyesno("Video Merger", f"Replace {Path(recipe.output).name}?"):
+        output = engine.output_path(recipe)
+        if engine.overwrites_input(recipe):
+            messagebox.showerror("Video Merger", f"{output.name} is one of your clips or the sound.\nChoose another name under Save as.")
+            return
+        if output.exists() and not messagebox.askyesno("Video Merger", f"Replace {output.name}?"):
             return
         self.job = engine.Job(recipe, on_progress=lambda stage, f: self.events.put(("progress", stage, f)))
         self.progress.configure(value=0)
